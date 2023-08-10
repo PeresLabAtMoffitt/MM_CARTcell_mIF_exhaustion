@@ -1,0 +1,177 @@
+---
+title: "Exploratory data analysis"
+author: "Christelle Colin-Leitzinger"
+date: '`r Sys.Date()`'
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_collapsed: false
+    theme: united
+    highlight: pygments
+    df_print: kable
+editor_options: 
+  chunk_output_type: console
+---
+
+<style type="text/css">
+
+.figure {
+    margin-top: 100px;
+    margin-bottom: 100px;
+}
+
+table {
+    margin-top: 10px;
+    margin-bottom: 25px !important;
+}
+
+th, td { padding: 5px; }
+
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE,
+                      message = FALSE,
+                      cache = FALSE,
+                      fig.align='center'
+                      )
+```
+
+```{r library}
+library(tidyverse)
+library(gtsummary)
+theme_set(theme_classic())
+theme_gtsummary_compact()
+```
+
+```{r}
+immune_data <- 
+  read_rds(paste0(here::here(), "/immune_data.rds"))
+```
+
+# Explore overall immune data
+## Immune cell count
+```{r}
+immune_data %>% 
+  select(total_cells : cd3plus_pd1plus_lag3plus_tim3plus_cells) %>% 
+  tbl_summary() %>% 
+  bold_labels()
+```
+
+plot with same scale to compare
+```{r, fig.height=8}
+immune_data %>% 
+  select(total_cells : cd3plus_pd1plus_lag3plus_tim3plus_cells) %>% 
+  pivot_longer(cols = everything(),
+               names_to = "cell type",
+               values_to = "cell count") %>% 
+  ggplot(aes(y= `cell count`))+
+  geom_boxplot()+
+  facet_wrap(. ~ `cell type`, 
+             ncol = 3)
+```
+
+plot with different scale to visualise separately
+```{r, fig.height=8}
+immune_data %>% 
+  select(total_cells : cd3plus_pd1plus_lag3plus_tim3plus_cells) %>% 
+  pivot_longer(cols = everything(),
+               names_to = "cell type",
+               values_to = "cell count") %>% 
+  ggplot(aes(x= `cell type`, y= `cell count`, color= `cell type`))+
+  geom_boxplot()+
+  geom_jitter(color= "darkgrey")+
+  facet_wrap(. ~ `cell type`, 
+             ncol = 3, scales = "free")+
+  theme(legend.position = "none")
+```
+
+How does activation and exhaustion marker follow plasma cell presence?
+```{r, fig.height=8}
+library(viridis)
+library(plotly)
+library(ggpubr)
+plot <- 
+  immune_data %>% 
+  select(mrn, cd3_positive_cells : cd3plus_pd1plus_lag3plus_tim3plus_cells) %>% 
+  pivot_longer(cols = -c(mrn, cd138_positive_cells),
+               names_to = "cell type",
+               values_to = "cell count") %>% 
+  ggplot(aes(x= cd138_positive_cells, y= `cell count`, color= mrn))+
+  geom_point()+
+  scale_color_viridis()+
+  facet_wrap(. ~ `cell type`, 
+             ncol = 3, scales = "free_y")+
+  theme(legend.position = "none",
+        text = element_text(size = 10)) +
+  geom_smooth(method = "lm", se = FALSE)
+
+ggplotly(plot, tooltip="color")
+
+immune_data %>% 
+  select(mrn, cd3_positive_cells : cd3plus_pd1plus_lag3plus_tim3plus_cells) %>% 
+  pivot_longer(cols = -c(mrn, cd138_positive_cells),
+               names_to = "cell type",
+               values_to = "cell count") %>% 
+  ggplot(aes(x= cd138_positive_cells, y= `cell count`, color= mrn))+
+  geom_point()+
+  scale_color_viridis()+
+  facet_wrap(. ~ `cell type`, 
+             ncol = 3, scales = "free_y")+
+  theme(legend.position = "none",
+        text = element_text(size = 10)) +
+  geom_smooth(method = "lm", se = FALSE)+
+  stat_cor(size = 2.5, label.x = 0, 
+           label.y.npc = 0.9#,
+           # aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))
+           )+
+    
+  stat_regline_equation(size = 2, label.x = 150000, 
+                        label.y.npc = 0.85)
+```
+
+## Percentage
+```{r}
+immune_data %>% 
+  select(starts_with("percent")) %>% 
+  tbl_summary() %>% 
+  bold_labels()
+```
+
+plot with same scale to compare
+```{r, fig.height=8}
+immune_data %>% 
+  select(starts_with("percent")) %>% 
+  pivot_longer(cols = everything(),
+               names_to = "cell type",
+               values_to = "cell count") %>% 
+  ggplot(aes(y= `cell count`))+
+  geom_boxplot()+
+  facet_wrap(. ~ `cell type`, 
+             ncol = 3)
+```
+
+plot with different scale to visualise separately
+```{r, fig.height=8}
+immune_data %>% 
+  select(starts_with("percent")) %>% 
+  pivot_longer(cols = everything(),
+               names_to = "cell type",
+               values_to = "cell count") %>% 
+  ggplot(aes(x= `cell type`, y= `cell count`, color= `cell type`))+
+  geom_boxplot()+
+  geom_jitter(color= "darkgrey")+
+  facet_wrap(. ~ `cell type`, 
+             ncol = 3, scales = "free")+
+  theme(legend.position = "none")
+```
+
+
+
+
+
+
+
+
