@@ -38,13 +38,23 @@ immune_data <- mrn_map %>%
             by = c("image_tag", "analysis_region")) %>% 
   right_join(clinical, .,
           by = "mrn") %>% 
-  mutate(across(where(is.character), ~ str_to_sentence(.) 
-                )) 
+  mutate(mrn = as.character(mrn)) %>% 
+  # Homogenize string case
+  mutate(across(c(where(is.character), 
+                  -c(starts_with("x")),
+                  c(contains("mrd"))
+                  ), ~ str_to_sentence(.) 
+                )) %>% 
+  mutate(across(c(contains("response")), ~ str_to_upper(.) 
+  )) %>% 
+  mutate(across(c(contains("response")), ~ str_replace(., "SCR", "sCR") 
+  ))
 
 immune_data1 <- immune_data %>% 
   # Fix class and Unknown
   mutate_at(c("extramedullary_disease_yes_no", 
-              "ethnicity_yes_no_of_hispanic_latin_x_or_spanish_origin_unknown"),
+              "ethnicity_yes_no_of_hispanic_latin_x_or_spanish_origin_unknown",
+              "race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown"),
             ~ na_if(., "Unknown")) %>% 
   mutate_at(c("stem_cell_boost", "need_for_gcsf",
               "need_for_promacta_or_need_for_tpo_agonist"),
@@ -54,7 +64,6 @@ immune_data1 <- immune_data %>%
                   ),
                 ~ as.Date(., format = "%m/%d/%y")
   )) %>% 
-  # mutate_at(c("cr_cl_at_infusion"), ~ is.numeric(.)) %>% 
   
   # Create new var
   # infusion
@@ -106,7 +115,12 @@ immune_data1 <- immune_data %>%
     ecog_at_ld %in% c(2:4)                             ~ "2-4",
     TRUE                                               ~ NA_character_
   )) %>% 
-  mutate(high_marrow_burden_50_percent= str_to_upper(high_marrow_burden_50_percent))  %>%
+  mutate(r_iss_at_car_t_infusion = case_when(
+    r_iss_at_car_t_infusion == "Ii"                    ~ "II",
+    r_iss_at_car_t_infusion == "Iii"                   ~ "III",
+    TRUE                                               ~ r_iss_at_car_t_infusion
+  )) %>% 
+  # mutate(high_marrow_burden_50_percent= str_to_upper(high_marrow_burden_50_percent))  %>%
   # cytogenetics
   mutate(cytogenetics = case_when(
     deletion_17p_prior_to_car_t_infusion_yes_no == "Yes" | 
@@ -118,7 +132,7 @@ immune_data1 <- immune_data %>%
     TRUE                                                           ~ NA_character_
   )) %>% 
   # Refractory status
-  mutate(immuNo = case_when(
+  mutate(immuno = case_when(
     lenalidomide_exposed_vs_refractory == "Refractory" |
       pomalidomide_exposed_vs_refractory == "Refractory"           ~ "Yes",
     TRUE                                                           ~ "No"
@@ -134,12 +148,12 @@ immune_data1 <- immune_data %>%
   )) %>% 
   mutate(doubleref = case_when(
     proteasome == "Yes" &
-      immuNo == "Yes"                                              ~ "Yes",
+      immuno == "Yes"                                              ~ "Yes",
     TRUE                                                           ~ "No"
   )) %>% 
   mutate(tripleref = case_when(
     proteasome == "Yes" &
-      immuNo == "Yes" &
+      immuno == "Yes" &
       monoclonal_ab_exposed_vs_refractory == "Refractory"          ~ "Yes",
     TRUE                                                           ~ "No"
   )) %>% 
@@ -558,7 +572,7 @@ immune_data1 <- immune_data %>%
   )) %>% 
   # Cell dose ----
   mutate(cell_dose_million_cells = case_when(
-    cell_dose_million_cells == 999999                  ~ NA_real_, # Not necessary for this data
+    cell_dose_million_cells == 999999                  ~ NA_real_, # Not necessary for this data but keep
     TRUE                                               ~ cell_dose_million_cells
   )) %>%
   mutate(cart_cell_dose = case_when(
@@ -568,15 +582,15 @@ immune_data1 <- immune_data %>%
   )) %>% 
   
   # Therapy ----
-  mutate(bridging_therapy_yes_no = str_to_upper(bridging_therapy_yes_no)) %>%
-  mutate(extramedullary_disease_yes_no = case_when(
-    extramedullary_disease_yes_no == "Unknown" ~ NA_character_,
-    TRUE ~ extramedullary_disease_yes_no
-  )) %>%
-  mutate(extramedullary_disease_yes_no = str_to_upper(extramedullary_disease_yes_no)) %>%
-  mutate(prior_treatment_with_any_gene_therapy_based_therapeutic_or_investigational_cellular_therapy_or_bcma_targeted_therapy_yes_no = str_to_upper(prior_treatment_with_any_gene_therapy_based_therapeutic_or_investigational_cellular_therapy_or_bcma_targeted_therapy_yes_no)) %>%
-  mutate(anakinra_yes_no = str_to_upper(anakinra_yes_no)) %>%
-  mutate(non_secretory_mm_yes_no = str_to_upper(non_secretory_mm_yes_no)) %>%
+  # mutate(bridging_therapy_yes_no = str_to_upper(bridging_therapy_yes_no)) %>%
+  # mutate(extramedullary_disease_yes_no = case_when(
+  #   extramedullary_disease_yes_no == "Unknown" ~ NA_character_,
+  #   TRUE ~ extramedullary_disease_yes_no
+  # )) %>%
+  # mutate(extramedullary_disease_yes_no = str_to_upper(extramedullary_disease_yes_no)) %>%
+  # mutate(prior_treatment_with_any_gene_therapy_based_therapeutic_or_investigational_cellular_therapy_or_bcma_targeted_therapy_yes_no = str_to_upper(prior_treatment_with_any_gene_therapy_based_therapeutic_or_investigational_cellular_therapy_or_bcma_targeted_therapy_yes_no)) %>%
+  # mutate(anakinra_yes_no = str_to_upper(anakinra_yes_no)) %>%
+  # mutate(non_secretory_mm_yes_no = str_to_upper(non_secretory_mm_yes_no)) %>%
   mutate(plasma_cell_leukemia_yes_no = case_when(
     plasma_cell_leukemia_yes_no == 0 ~ "No",
     plasma_cell_leukemia_yes_no == 1 ~ "Yes",
@@ -592,12 +606,12 @@ immune_data1 <- immune_data %>%
     poems == 1 ~ "Yes",
     is.na(poems) ~ NA_character_
   )) %>%
-  mutate(prior_auto_sct_yes_no = str_to_upper(prior_auto_sct_yes_no)) %>%
-  mutate(asct_within_12_weeks_prior_to_apheresis_yes_no = str_to_upper(asct_within_12_weeks_prior_to_apheresis_yes_no)) %>%
-  mutate(prior_allo_sct_yes_no = str_to_upper(prior_allo_sct_yes_no)) %>%
+  # mutate(prior_auto_sct_yes_no = str_to_upper(prior_auto_sct_yes_no)) %>%
+  # mutate(asct_within_12_weeks_prior_to_apheresis_yes_no = str_to_upper(asct_within_12_weeks_prior_to_apheresis_yes_no)) %>%
+  # mutate(prior_allo_sct_yes_no = str_to_upper(prior_allo_sct_yes_no)) %>%
   mutate(inpatientbed = case_when(
-    icu_admission_yes_no== "No" | is.na(icu_admission_yes_no) ~ length_of_hospital_stay_total_days_including_readmission,
-    icu_admission_yes_no=="Yes" ~ (length_of_hospital_stay_total_days_including_readmission - length_of_icu_stay)
+    icu_admission_yes_no == "No" | is.na(icu_admission_yes_no) ~ length_of_hospital_stay_total_days_including_readmission,
+    icu_admission_yes_no == "Yes" ~ (length_of_hospital_stay_total_days_including_readmission - length_of_icu_stay)
   )) %>%
   mutate(inpatientbed_costs = inpatientbed * 3001.80) %>% 
   mutate(icubed_costs = length_of_icu_stay * 9531.52) %>%
@@ -612,10 +626,10 @@ immune_data1 <- immune_data %>%
   mutate(total_costs = case_when(
     icu_admission_yes_no == "Yes" ~ (inpatientbed_costs + icubed_costs),
     TRUE ~ inpatientbed_costs)) %>%
-  mutate(icu_admission_yes_no = str_to_upper(icu_admission_yes_no)) %>% 
-  mutate(tocilizumab_yes_no = str_to_upper(tocilizumab_yes_no)) %>% 
-  mutate(steroid_use_yes_no = str_to_upper(steroid_use_yes_no)) %>%
-  mutate(bridging_therapy_yes_no = case_when(
+  # mutate(icu_admission_yes_no = str_to_upper(icu_admission_yes_no)) %>% 
+  # mutate(tocilizumab_yes_no = str_to_upper(tocilizumab_yes_no)) %>% 
+  # mutate(steroid_use_yes_no = str_to_upper(steroid_use_yes_no)) %>%
+  mutate(bridging_therapy_yes_no = case_when( # Not needed for this data but keep
     bridging_therapy_yes_no == "Xrt" ~ "Yes",
     TRUE ~ bridging_therapy_yes_no
   )) %>% 
@@ -750,36 +764,45 @@ immune_data2 <- immune_data1 %>%
     is.na(day30response_v2)               ~ NA_character_,
     TRUE                                                        ~ "< CR"
   )) %>%
-  mutate(day_30_mrd_clonoseq_positive_vs_negative = case_when(
-    day_30_mrd_clonoseq_positive_vs_negative == "mrd_neg" ~ "Negative",
-    day_30_mrd_clonoseq_positive_vs_negative == "mrd_pos" ~ "Positive",
-    day_30_mrd_clonoseq_positive_vs_negative == "mrd_unk" ~ NA_character_,
-    TRUE ~ day_30_mrd_clonoseq_positive_vs_negative
-  )) %>%
-  mutate(x3_month_mrd_clonoseq_positive_vs_negative = case_when(
-    x3_month_mrd_clonoseq_positive_vs_negative == "mrd_neg" ~ "Negative",
-    x3_month_mrd_clonoseq_positive_vs_negative == "mrd_pos" ~ "Positive",
-    x3_month_mrd_clonoseq_positive_vs_negative == "mrd_unk" ~ NA_character_,
-    TRUE ~ x3_month_mrd_clonoseq_positive_vs_negative
-  )) %>%
-  mutate(x6_month_mrd_clonoseq_positive_vs_negative = case_when(
-    x6_month_mrd_clonoseq_positive_vs_negative == "mrd_neg" ~ "Negative",
-    x6_month_mrd_clonoseq_positive_vs_negative == "mrd_pos" ~ "Positive",
-    x6_month_mrd_clonoseq_positive_vs_negative == "mrd_unk" ~ NA_character_,
-    TRUE ~ x6_month_mrd_clonoseq_positive_vs_negative
-  )) %>%
-  mutate(x9_month_mrd_clonoseq_positive_vs_negative = case_when(
-    x9_month_mrd_clonoseq_positive_vs_negative == "mrd_neg" ~ "Negative",
-    x9_month_mrd_clonoseq_positive_vs_negative == "mrd_pos" ~ "Positive",
-    x9_month_mrd_clonoseq_positive_vs_negative == "mrd_unk" ~ NA_character_,
-    TRUE ~ x9_month_mrd_clonoseq_positive_vs_negative
-  )) %>%
-  mutate(x12_month_mrd_clonoseq_positive_vs_negative = case_when(
-    x12_month_mrd_clonoseq_positive_vs_negative == "mrd_neg" ~ "Negative",
-    x12_month_mrd_clonoseq_positive_vs_negative == "mrd_pos" ~ "Positive",
-    x12_month_mrd_clonoseq_positive_vs_negative == "mrd_unk" ~ NA_character_,
-    TRUE ~ x12_month_mrd_clonoseq_positive_vs_negative
-  )) %>%
+  # MRD this replace what is commented out below
+  mutate(across(c(contains("mrd")), ~ case_when(
+    . == "Mrd_neg" ~ "Negative",
+    . == "Mrd_pos" ~ "Positive",
+    . == "Mrd_unk" ~ NA_character_,
+    TRUE ~ .
+  )
+  )) %>% 
+  # mutate(day_30_mrd_clonoseq_positive_vs_negative = case_when(
+  #   day_30_mrd_clonoseq_positive_vs_negative == "mrd_neg" ~ "Negative",
+  #   day_30_mrd_clonoseq_positive_vs_negative == "mrd_pos" ~ "Positive",
+  #   day_30_mrd_clonoseq_positive_vs_negative == "mrd_unk" ~ NA_character_,
+  #   TRUE ~ day_30_mrd_clonoseq_positive_vs_negative
+  # )) %>%
+  # mutate(x3_month_mrd_clonoseq_positive_vs_negative = case_when(
+  #   x3_month_mrd_clonoseq_positive_vs_negative == "mrd_neg" ~ "Negative",
+  #   x3_month_mrd_clonoseq_positive_vs_negative == "mrd_pos" ~ "Positive",
+  #   x3_month_mrd_clonoseq_positive_vs_negative == "mrd_unk" ~ NA_character_,
+  #   TRUE ~ x3_month_mrd_clonoseq_positive_vs_negative
+  # )) %>%
+  # mutate(x6_month_mrd_clonoseq_positive_vs_negative = case_when(
+  #   x6_month_mrd_clonoseq_positive_vs_negative == "mrd_neg" ~ "Negative",
+  #   x6_month_mrd_clonoseq_positive_vs_negative == "mrd_pos" ~ "Positive",
+  #   x6_month_mrd_clonoseq_positive_vs_negative == "mrd_unk" ~ NA_character_,
+  #   TRUE ~ x6_month_mrd_clonoseq_positive_vs_negative
+  # )) %>%
+  # mutate(x9_month_mrd_clonoseq_positive_vs_negative = case_when(
+  #   x9_month_mrd_clonoseq_positive_vs_negative == "mrd_neg" ~ "Negative",
+  #   x9_month_mrd_clonoseq_positive_vs_negative == "mrd_pos" ~ "Positive",
+  #   x9_month_mrd_clonoseq_positive_vs_negative == "mrd_unk" ~ NA_character_,
+  #   TRUE ~ x9_month_mrd_clonoseq_positive_vs_negative
+  # )) %>%
+  # mutate(x12_month_mrd_clonoseq_positive_vs_negative = case_when(
+  #   x12_month_mrd_clonoseq_positive_vs_negative == "mrd_neg" ~ "Negative",
+  #   x12_month_mrd_clonoseq_positive_vs_negative == "mrd_pos" ~ "Positive",
+  #   x12_month_mrd_clonoseq_positive_vs_negative == "mrd_unk" ~ NA_character_,
+  #   TRUE ~ x12_month_mrd_clonoseq_positive_vs_negative
+  # )) %>%
+  
   
   mutate(day30response_MRD = case_when(
     day30response_v2 == "sCR or CR" & day_30_mrd_clonoseq_positive_vs_negative == "Negative" ~ "sCR or CR, MRD-",
@@ -947,18 +970,18 @@ immune_data2 <- immune_data1 %>%
 immune_data3 <- immune_data2 %>% 
   # Labs
   mutate(baseline_ferritin = case_when(
-    baseline_ferritin >= 400                                    ~ "≥ ULN at LD (≥ 400)",
-    baseline_ferritin < 400                                    ~ "Normal (< 400)"
+    baseline_ferritin >= 400                              ~ "≥ ULN at LD (≥ 400)",
+    baseline_ferritin < 400                               ~ "Normal (< 400)"
   )) %>% 
   mutate(baseline_crp = case_when(
-    baseline_crp >= 0.5                                    ~ "≥ ULN at LD (≥ 0.5)",
+    baseline_crp >= 0.5                                   ~ "≥ ULN at LD (≥ 0.5)",
     baseline_crp < 0.5                                    ~ "Normal (< 0.5)"
   )) %>%
   mutate(baseline_B2M = case_when(
-    baseline_b2m >= 5.5                                    ~ "≥ 5.5",
+    baseline_b2m >= 5.5                                   ~ "≥ 5.5",
     baseline_b2m < 5.5                                    ~ "< 5.5"
   )) %>%
-  mutate(renal_insufficiency_cr_cl_45_m_l_min_yes_no = str_to_upper(renal_insufficiency_cr_cl_45_m_l_min_yes_no)) %>%
+  # mutate(renal_insufficiency_cr_cl_45_m_l_min_yes_no = str_to_upper(renal_insufficiency_cr_cl_45_m_l_min_yes_no)) %>%
   mutate(excl_orgdys = case_when(
     lvef_45_percent_yes_no == "Yes" | lvef_45_percent_yes_no == "Yes" |
       ast_alt_2_5_uln_yes_no == "Yes" | ast_alt_2_5_uln_yes_no == "Yes" |
@@ -979,23 +1002,23 @@ immune_data3 <- immune_data2 %>%
     non_secretory_mm_yes_no == "No" & is.na(myeloma_sub_type) ~ NA_character_,
     TRUE ~ "Intact immunoglobulin (Heavy + Light)" 
   )) %>%
-  mutate(eth_clean = case_when(
-    ethnicity_yes_no_of_hispanic_latin_x_or_spanish_origin_unknown == "Unknown" ~ NA_character_,
-    TRUE ~ ethnicity_yes_no_of_hispanic_latin_x_or_spanish_origin_unknown
-  )) %>%
+  # mutate(eth_clean = case_when(
+  #   ethnicity_yes_no_of_hispanic_latin_x_or_spanish_origin_unknown == "Unknown" ~ NA_character_,
+  #   TRUE ~ ethnicity_yes_no_of_hispanic_latin_x_or_spanish_origin_unknown
+  # )) %>%
   mutate(race_eth = case_when(
-    eth_clean == "Yes" ~ "Hispanic (All races)",
+    ethnicity_yes_no_of_hispanic_latin_x_or_spanish_origin_unknown == "Yes" ~ "Hispanic (All races)",
     TRUE ~ race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown
-  )) %>% 
-  mutate(race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown = case_when(
-    race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown == "Unknown" ~ NA_character_,
-    TRUE ~ race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown
-  ))
+  )) #%>% 
+  # mutate(race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown = case_when(
+  #   race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown == "Unknown" ~ NA_character_,
+  #   TRUE ~ race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown
+  # ))
 
 
 
 
-write_rds(immune_data, paste0(here::here(), "/immune_data.rds"))
+write_rds(immune_data3, paste0(here::here(), "/immune_data.rds"))
 
 
 check_data <- function(data){
