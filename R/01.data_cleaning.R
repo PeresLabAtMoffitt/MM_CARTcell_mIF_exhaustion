@@ -21,7 +21,10 @@ mif_data <-
                            "Peres_P2_Myeloma_Aug2023_Results.xlsx"),
                     .name_repair = fct_name_repair) %>% 
   janitor::clean_names() %>% 
-  `colnames<-`(str_remove(colnames(.), "opal_..._"))
+  `colnames<-`(str_remove_all(colnames(.), "opal_..._|_cells") %>% 
+                 str_replace("positive", "plus") %>% 
+                 str_replace("plus_plus", "plus")) %>% 
+  rename(total_cells = total)
 
 mrn_map <- 
   readxl::read_xlsx(paste0(path, "/data/raw data/AADL_MRN_map.xlsx")) %>% 
@@ -1015,10 +1018,12 @@ immune_data3 <- immune_data2 %>%
   #   TRUE ~ race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown
   # ))
 
+immune_data <- immune_data3 %>% 
+  select(-c(image_tag : area_analyzed_mm2), 
+         image_tag : area_analyzed_mm2)
 
 
-
-write_rds(immune_data3, paste0(here::here(), "/immune_data.rds"))
+write_rds(immune_data, paste0(here::here(), "/immune_data.rds"))
 
 
 check_data <- function(data){
