@@ -49,16 +49,92 @@ theme_set(theme_classic())
 theme_gtsummary_compact()
 ```
 
-```{r}
+```{r load data}
 immune_data <- 
   read_rds(paste0(here::here(), "/immune_data.rds"))
+```
+
+# Ratio Immune cells / plasma cells
+```{r create cell ratio and cat}
+immune_data <- immune_data %>%
+  select(-c(
+    # remove because problem of staining
+    cd8_plus, percent_cd8_plus, 
+    # remove var of non interest
+    contains("tim3_plus"),
+    contains("lag3_plus"),
+    contains("pd1_plus"),
+    contains("tim3minus")
+  ))
+
+rate_data <- immune_data %>%
+  select(mrn, cd3_plus, cd3plus_lag3plus : cd3plus_pd1plus_lag3plus_tim3plus) %>%
+  mutate(across(-c(mrn, cd3_plus), ~ . / cd3_plus)) %>%
+  `colnames<-`(c("mrn", "cd3_plus", str_c(colnames(.)[3:ncol(.)], ".CD3ratio")))
+
+immune_data <- immune_data %>%
+  full_join(., rate_data,
+            by = c("mrn", "cd3_plus")) %>% 
+  # create cat plasma cell and activation marker
+  mutate(cd138_cat = case_when(
+    percent_cd138_plus < 
+      median(percent_cd138_plus, na.rm = TRUE)                             ~ "Low",
+    percent_cd138_plus >= 
+      median(percent_cd138_plus, na.rm = TRUE)                             ~ "High"
+  )) %>% 
+  mutate(cd3_cat = case_when(
+    percent_cd3_plus < 
+      median(percent_cd3_plus, na.rm = TRUE)                               ~ "Low",
+    percent_cd3_plus >= 
+      median(percent_cd3_plus, na.rm = TRUE)                               ~ "High"
+  )) %>% 
+  mutate(cd3plus_cd8plus_cat = case_when(
+    percent_cd3plus_cd8plus < 
+      median(percent_cd3plus_cd8plus, na.rm = TRUE)                        ~ "Low",
+    percent_cd3plus_cd8plus >= 
+      median(percent_cd3plus_cd8plus, na.rm = TRUE)                        ~ "High"
+  )) %>% 
+  # create cat exhaustion marker
+  mutate(cd3plus_lag3plus.CD3ratio_cat = case_when(
+    cd3plus_lag3plus.CD3ratio < 
+      median(cd3plus_lag3plus.CD3ratio, na.rm = TRUE)                      ~ "Low",
+    cd3plus_lag3plus.CD3ratio >= 
+      median(cd3plus_lag3plus.CD3ratio, na.rm = TRUE)                      ~ "High"
+  )) %>% 
+  mutate(cd3plus_tim3plus.CD3ratio_cat = case_when(
+    cd3plus_tim3plus.CD3ratio < 
+      median(cd3plus_tim3plus.CD3ratio, na.rm = TRUE)                      ~ "Low",
+    cd3plus_tim3plus.CD3ratio >= 
+      median(cd3plus_tim3plus.CD3ratio, na.rm = TRUE)                      ~ "High"
+  )) %>% 
+  mutate(cd3plus_pd1plus_lag3plus.CD3ratio_cat = case_when(
+    cd3plus_pd1plus_lag3plus.CD3ratio < 
+      median(cd3plus_pd1plus_lag3plus.CD3ratio, na.rm = TRUE)              ~ "Low",
+    cd3plus_pd1plus_lag3plus.CD3ratio >= 
+      median(cd3plus_pd1plus_lag3plus.CD3ratio, na.rm = TRUE)              ~ "High"
+  )) %>% 
+  mutate(cd3plus_pd1plus_tim3plus.CD3ratio_cat = case_when(
+    cd3plus_pd1plus_tim3plus.CD3ratio < 
+      median(cd3plus_pd1plus_tim3plus.CD3ratio, na.rm = TRUE)              ~ "Low",
+    cd3plus_pd1plus_tim3plus.CD3ratio >= 
+      median(cd3plus_pd1plus_tim3plus.CD3ratio, na.rm = TRUE)              ~ "High"
+  )) %>% 
+  mutate(cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat = case_when(
+    cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio < 
+      median(cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio, na.rm = TRUE)     ~ "Low",
+    cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio >= 
+      median(cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio, na.rm = TRUE)     ~ "High"
+  )) %>% 
+  mutate(across(ends_with("_cat"), ~ factor(., levels = c("Low", "High"))))
+
 ```
 
 # Explore overall immune data
 ## Immune cell count
 ```{r}
 immune_data %>%
-  select(total_cells : cd3plus_pd1plus_lag3plus_tim3plus_cells) %>%
+  select(percent_cd3_plus : percent_cd3plus_cd8plus,
+         ends_with(".CD3ratio")) %>%
   tbl_summary() %>%
   bold_labels()
 ```
@@ -66,7 +142,8 @@ immune_data %>%
 plot with same scale to compare
 ```{r, fig.height=8}
 immune_data %>%
-  select(total_cells : cd3plus_pd1plus_lag3plus_tim3plus_cells) %>%
+  select(percent_cd3_plus : percent_cd3plus_cd8plus,
+         ends_with(".CD3ratio")) %>%
   pivot_longer(cols = everything(),
                names_to = "cell type",
                values_to = "cell count") %>%
@@ -79,7 +156,8 @@ immune_data %>%
 plot with different scale to visualise separately
 ```{r, fig.height=8}
 immune_data %>%
-  select(total_cells : cd3plus_pd1plus_lag3plus_tim3plus_cells) %>%
+  select(percent_cd3_plus : percent_cd3plus_cd8plus,
+         ends_with(".CD3ratio")) %>%
   pivot_longer(cols = everything(),
                names_to = "cell type",
                values_to = "cell count") %>%
@@ -91,8 +169,28 @@ immune_data %>%
   theme(legend.position = "none")
 ```
 
-## How does activation and exhaustion marker follow plasma cell presence?
-Interesting negative correlation with pd1 but not significant.  
+## How does activation and exhaustion marker correlate with plasma cell presence?
+
+```{r}
+# library(corrplot)
+library(ggcorrplot)
+mat_data <- immune_data %>%
+  select(percent_cd3_plus : percent_cd3plus_cd8plus,
+         ends_with(".CD3ratio"))
+mat <- cor(mat_data)
+as_tibble(mat["percent_cd138_plus",], rownames = "Cell Types")
+ggcorrplot(mat, hc.order = TRUE, method = "circle", 
+           type = "lower", 
+           lab = TRUE, 
+           title = "Correlation between T cell abundance",
+           show.legend = TRUE, legend.title = "Correlation", show.diag = TRUE,
+           lab_col = "darkblue", lab_size = 3, 
+           sig.level = 0.05, insig = c("pch", "blank"), pch = 4, pch.col = "black", pch.cex = 10, 
+           tl.cex = 10, tl.col = "red", tl.srt = 40,
+           digits = 2
+)
+```
+
 The first plot is a plotly showing the ids, the second plot shows the correlation coefficients with p-values.
 ```{r, fig.height=8}
 library(viridis)
@@ -100,77 +198,44 @@ library(plotly)
 library(ggpubr)
 plot <-
   immune_data %>%
-  select(mrn, cd3_positive_cells : cd3plus_pd1plus_lag3plus_tim3plus_cells) %>%
-  pivot_longer(cols = -c(mrn, cd138_positive_cells),
+  select(mrn, cd138_plus, percent_cd3_plus : percent_cd3plus_cd8plus,
+         ends_with(".CD3ratio")) %>%
+  pivot_longer(cols = -c(mrn, percent_cd138_plus),
                names_to = "cell type",
                values_to = "cell count") %>%
-  ggplot(aes(x= cd138_positive_cells, y= `cell count`, color= mrn))+
+  ggplot(aes(x= percent_cd138_plus, y= `cell count`, color= mrn))+
   geom_point()+
-  scale_color_viridis()+
+  scale_color_viridis_d()+
   facet_wrap(. ~ `cell type`,
              ncol = 3, scales = "free_y")+
   theme(legend.position = "none",
         text = element_text(size = 10)) +
-  geom_smooth(method = "lm", se = FALSE)
+  geom_smooth(method = "lm", se = FALSE, color= "blue")
 
 ggplotly(plot, tooltip="color")
 
 immune_data %>%
-  select(mrn, cd3_positive_cells : cd3plus_pd1plus_lag3plus_tim3plus_cells) %>%
-  pivot_longer(cols = -c(mrn, cd138_positive_cells),
+  select(mrn, cd138_plus, percent_cd3_plus : percent_cd3plus_cd8plus,
+         ends_with(".CD3ratio")) %>%
+  pivot_longer(cols = -c(mrn, percent_cd138_plus),
                names_to = "cell type",
                values_to = "cell count") %>%
-  ggplot(aes(x= cd138_positive_cells, y= `cell count`, color= mrn))+
+  ggplot(aes(x= percent_cd138_plus, y= `cell count`, color= mrn))+
   geom_point()+
-  scale_color_viridis()+
+  scale_color_viridis_d()+
   facet_wrap(. ~ `cell type`,
              ncol = 3, scales = "free_y")+
   theme(legend.position = "none",
         text = element_text(size = 10)) +
-  geom_smooth(method = "lm", se = FALSE)+
-  stat_cor(size = 2.5, label.x = 0,
-           label.y.npc = 0.9#,
+  geom_smooth(method = "lm", se = FALSE, color= "blue")+
+  stat_cor(size = 2.5, label.x.npc = 0,
+           label.y.npc = 0.9,
            # aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))
-           )+
+           color= "black")+
 
-  stat_regline_equation(size = 2, label.x = 150000,
-                        label.y.npc = 0.85)
-```
-
-## Percentage
-```{r}
-immune_data %>%
-  select(starts_with("percent")) %>%
-  tbl_summary() %>%
-  bold_labels()
-```
-
-plot with same scale to compare
-```{r, fig.height=8}
-immune_data %>%
-  select(starts_with("percent")) %>%
-  pivot_longer(cols = everything(),
-               names_to = "cell type",
-               values_to = "cell count") %>%
-  ggplot(aes(y= `cell count`))+
-  geom_boxplot()+
-  facet_wrap(. ~ `cell type`,
-             ncol = 3)
-```
-
-plot with different scale to visualise separately
-```{r, fig.height=8}
-immune_data %>%
-  select(starts_with("percent")) %>%
-  pivot_longer(cols = everything(),
-               names_to = "cell type",
-               values_to = "cell count") %>%
-  ggplot(aes(x= `cell type`, y= `cell count`, color= `cell type`))+
-  geom_boxplot()+
-  geom_jitter(color= "darkgrey")+
-  facet_wrap(. ~ `cell type`,
-             ncol = 3, scales = "free")+
-  theme(legend.position = "none")
+  stat_regline_equation(size = 2.5, label.x.npc = 0.5,
+                        label.y.npc = 0.9,
+                        color= "black")
 ```
 
 ```{r}
@@ -251,7 +316,7 @@ var_label(immune_data) <-
 
 ```
 
-# Explor clinical
+# Explore clinical
 ## Patients characteristics
 ```{r}
 immune_data %>%
@@ -374,23 +439,25 @@ immune_data %>%
 
 # Correlation plasma cell vs clinical
 ```{r}
+cor(immune_data[, c("bm_plasma_cell_percent_at_pre_ld", "percent_cd138_plus")], use = "complete.obs")
 immune_data %>%
-  ggplot(aes(x= bm_plasma_cell_percent_at_pre_ld, y= cd138_positive_cells, color= mrn))+
+  ggplot(aes(x= bm_plasma_cell_percent_at_pre_ld, y= percent_cd138_plus, color= mrn))+
   geom_point()+
-  scale_color_viridis()+
+  scale_color_viridis_d()+
   theme(legend.position = "none",
         text = element_text(size = 10)) +
-  geom_smooth( se = TRUE, span = 5)+
+  geom_smooth( se = TRUE, span = 5, color = "blue")+
   stat_cor(size = 2.5, label.x = 0,
-           label.y.npc = 0.9#,
+           label.y.npc = 0.9,
            # aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))
-           )+
+           color = "black")+
 
-  stat_regline_equation(size = 2, label.x = 50,
-                        label.y.npc = 0.85)
+  stat_regline_equation(size = 2.5, label.x = 50,
+                        label.y.npc = 0.9,
+                        color = "black")
 
 immune_data %>%
-  ggplot(aes(x= plasma_cell_leukemia_yes_no, y= cd138_positive_cells))+
+  ggplot(aes(x= high_marrow_burden_50_percent, y= percent_cd138_plus))+
   geom_boxplot()+
   geom_jitter()
 ```
@@ -400,33 +467,39 @@ Look at CRS_gradecat or gr3_CRS, gr2_CRS (CD138, 8, PD1+others)
 ICANS (PD1+others?)  
 
 ```{r, results = 'asis'}
-table_var <- c("extramedullary_disease_yes_no", 
-               "amyloid_yes_no", "plasma_cell_leukemia_yes_no",
-               "prior_treatment_with_any_gene_therapy_based_therapeutic_or_investigational_cellular_therapy_or_bcma_targeted_therapy_yes_no",
-               "h_o_or_presence_of_plasma_cell_leukemia_waldenstroms_poems_or_amyloidosis_yes_no",
-               "h_o_of_malignancies_yes_no",
-               "ongoing_treatment_with_chronic_immunosuppressants_yes_no",
-               "did_patient_met_criteria_for_kar_m_ma1_pre_car_t", "blenrep",
-               "bcma_car_t_on_trial", "high_marrow_burden_50_percent",
-               "infection_yes_no", "need_for_gcsf",
-               "need_for_promacta_or_need_for_tpo_agonist", "stem_cell_boost",
-               "race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown",
-               "ethnicity_yes_no_of_hispanic_latin_x_or_spanish_origin_unknown",
-               "race_eth", "race", "male_sex",
-               "pfs_event", "os_event", "cytogenetics", "immuno", "proteasome", "dara",
-               "doubleref", "tripleref", "pentaref", "number_prior_lines_therapy",
-               "CRS_any", "CRS_gradecat", "gr3_CRS", "gr2_CRS",
-               "ICANS_any", "ICANS_any2", "ICANS_gradecat",
-               "Neutropenia_90d", "Anemia_90d", "Thrombocytopenia_90d",
-               "any_neutropenia", "any_anemia", "any_thrombo", "cytopenia_d90",
-               "cart_cell_dose",
-               "baseline_B2M"
+table_var <- c(# "extramedullary_disease_yes_no", 
+               # "amyloid_yes_no", "plasma_cell_leukemia_yes_no",
+               # "prior_treatment_with_any_gene_therapy_based_therapeutic_or_investigational_cellular_therapy_or_bcma_targeted_therapy_yes_no",
+               # "h_o_or_presence_of_plasma_cell_leukemia_waldenstroms_poems_or_amyloidosis_yes_no",
+               # "h_o_of_malignancies_yes_no",
+               # "ongoing_treatment_with_chronic_immunosuppressants_yes_no",
+               # "did_patient_met_criteria_for_kar_m_ma1_pre_car_t", "blenrep",
+               # "bcma_car_t_on_trial", "high_marrow_burden_50_percent",
+               "infection_yes_no",
+  # "need_for_gcsf",
+               # "need_for_promacta_or_need_for_tpo_agonist", "stem_cell_boost",
+               # "race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown",
+               # "ethnicity_yes_no_of_hispanic_latin_x_or_spanish_origin_unknown",
+               # "race_eth", "race", "male_sex",
+               # "pfs_event", "os_event", "cytogenetics", "immuno", "proteasome", "dara",
+               # "doubleref", "tripleref", "pentaref", "number_prior_lines_therapy",
+               "CRS_any", "gr2_CRS",
+               "ICANS_any", "gr2_ICANS",
+               "gr3_cytopenia_d30", "gr3_cytopenia_d60", "gr3_cytopenia_d90"
+               # "Neutropenia_90d", "Anemia_90d", "Thrombocytopenia_90d",
+               # "any_neutropenia", "any_anemia", "any_thrombo", "cytopenia_d90",
+               # "cart_cell_dose",
+               # "baseline_B2M"
 ) 
 
 
 for (i in table_var){
   
-  tbl <- immune_data %>% select(i, starts_with("percent")) %>% 
+  tbl <- immune_data %>% 
+    select(i, 
+           percent_cd3_plus : percent_cd3plus_cd8plus,
+           ends_with(".CD3ratio"),
+           ends_with("_cat")) %>% 
     tbl_summary(by = i) %>% 
     bold_labels() %>% 
     add_p() %>% bold_p(t= 0.05) %>% 
@@ -440,32 +513,222 @@ for (i in table_var){
 # Immune cell in CART response
 worse response for high lag3 patients?
 ```{r, results = 'asis'}
-table_var <- c("day30response_v2", "mon3response_v2", "mon6response_v2", "mon9response_v2", 
-               "mon12response_v2", "mon15response_v2", "mon18response_v2", 
-               "ORR_30days", "ORR_3mon", "ORR_6mon", "ORR_9mon", "ORR_12mon",
-               "ORR_15mon", "ORR_18mon", "best_ORR", "best_response", 
-               "day30response_MRD", "mon3response_MRD", "mon6response_MRD",
-               "mon9response_MRD", "mon12response_MRD", "mon15response_MRD",
-               "mon18response_MRD", "best_response_MRD",
-               "CRorbetter_30days", "CRorbetter_3mon", "CRorbetter_6mon",
-               "CRorbetter_9mon", "CRorbetter_12mon", "CRorbetter_15mon",
-               "CRorbetter_18mon", "best_CRorbetter"
+table_var <- c(# "day30response_v2", "mon3response_v2", "mon6response_v2", "mon9response_v2", 
+               # "mon12response_v2", "mon15response_v2", "mon18response_v2", 
+               "ORR_30days", "ORR_3mon", #"ORR_6mon", "ORR_9mon", "ORR_12mon",
+               # "ORR_15mon", "ORR_18mon", 
+               "best_ORR", 
+               # "best_response", 
+               # "day30response_MRD", "mon3response_MRD", "mon6response_MRD",
+               # "mon9response_MRD", "mon12response_MRD", "mon15response_MRD",
+               # "mon18response_MRD", "best_response_MRD",
+               "CRorbetter_30days", "CRorbetter_3mon",# "CRorbetter_6mon",
+               # "CRorbetter_9mon", "CRorbetter_12mon", "CRorbetter_15mon",
+               # "CRorbetter_18mon", 
+               "best_CRorbetter"
 )
 
 for (i in table_var){
-
-  tbl <- immune_data %>% select(i, starts_with("percent")) %>%
+  
+  tbl <- immune_data %>% 
+    select(i, 
+           percent_cd3_plus : percent_cd3plus_cd8plus,
+           ends_with(".CD3ratio"),
+           ends_with("_cat")) %>%
     tbl_summary(by = i) %>%
     bold_labels() %>%
     add_p() %>% bold_p(t= 0.05) %>%
     modify_spanning_header(everything() ~ paste(i))
   print(tbl)
-
+  
 }
+
 ```
 
 # Overall survival
-```{r, fig.width= 6, fig.height=6}
+## HR
+```{r}
+tbl_uni <- immune_data %>% 
+  select(os_event, mo_os_from_infusion,
+         percent_cd3_plus : percent_cd3plus_cd8plus,
+         ends_with(".CD3ratio"),
+         cd138_cat, cd3_cat, 
+         cd3plus_cd8plus_cat, 
+         cd3plus_lag3plus.CD3ratio_cat, 
+         cd3plus_tim3plus.CD3ratio_cat, cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_tim3plus.CD3ratio_cat, 
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat,
+         
+         age, race_eth, race,
+         race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown) %>%
+  tbl_uvregression(method = survival::coxph,
+                   y = (Surv(time = immune_data$mo_os_from_infusion,
+                             event = immune_data$os_event)),
+                   exponentiate = TRUE) %>%
+  bold_labels() %>% italicize_levels() %>%
+  bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+tbl_uni
+# tbl1 <- coxph(Surv(time = immune_data$mo_os_from_infusion, 
+#                    event = immune_data$os_event) ~
+#                 percent_cd3_plus +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE,
+#                  include = percent_cd3_plus) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl2 <- coxph(Surv(time = immune_data$mo_os_from_infusion, 
+#                    event = immune_data$os_event) ~
+#                 percent_cd138_plus +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = percent_cd138_plus) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl3 <- coxph(Surv(time = immune_data$mo_os_from_infusion, 
+#                    event = immune_data$os_event) ~
+#                 percent_cd3plus_cd8plus +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = percent_cd3plus_cd8plus) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl4 <- coxph(Surv(time = immune_data$mo_os_from_infusion, 
+#                    event = immune_data$os_event) ~
+#                 cd3plus_lag3plus.CD3ratio +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_lag3plus.CD3ratio) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl5 <- coxph(Surv(time = immune_data$mo_os_from_infusion, 
+#                    event = immune_data$os_event) ~
+#                 cd3plus_tim3plus.CD3ratio +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_tim3plus.CD3ratio) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl6 <- coxph(Surv(time = immune_data$mo_os_from_infusion, 
+#                    event = immune_data$os_event) ~
+#                 cd3plus_pd1plus_lag3plus.CD3ratio +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_pd1plus_lag3plus.CD3ratio) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl7 <- coxph(Surv(time = immune_data$mo_os_from_infusion, 
+#                    event = immune_data$os_event) ~
+#                 cd3plus_pd1plus_tim3plus.CD3ratio +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_pd1plus_tim3plus.CD3ratio) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl8 <- coxph(Surv(time = immune_data$mo_os_from_infusion, 
+#                    event = immune_data$os_event) ~
+#                 cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl9 <- coxph(Surv(time = immune_data$mo_os_from_infusion, 
+#                    event = immune_data$os_event) ~
+#                 cd138_cat +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd138_cat) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl10 <- coxph(Surv(time = immune_data$mo_os_from_infusion, 
+#                    event = immune_data$os_event) ~
+#                 cd3_cat +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3_cat) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl11 <- coxph(Surv(time = immune_data$mo_os_from_infusion, 
+#                    event = immune_data$os_event) ~
+#                 cd3plus_cd8plus_cat +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_cd8plus_cat) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl12 <- coxph(Surv(time = immune_data$mo_os_from_infusion, 
+#                    event = immune_data$os_event) ~
+#                 cd3plus_lag3plus.CD3ratio_cat +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_lag3plus.CD3ratio_cat) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl13 <- coxph(Surv(time = immune_data$mo_os_from_infusion, 
+#                    event = immune_data$os_event) ~
+#                 cd3plus_tim3plus.CD3ratio_cat +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_tim3plus.CD3ratio_cat) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl14 <- coxph(Surv(time = immune_data$mo_os_from_infusion, 
+#                    event = immune_data$os_event) ~
+#                 cd3plus_pd1plus_lag3plus.CD3ratio_cat +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_pd1plus_lag3plus.CD3ratio_cat) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl15 <- coxph(Surv(time = immune_data$mo_os_from_infusion, 
+#                    event = immune_data$os_event) ~
+#                 cd3plus_pd1plus_tim3plus.CD3ratio_cat +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_pd1plus_tim3plus.CD3ratio_cat) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl16 <- coxph(Surv(time = immune_data$mo_os_from_infusion, 
+#                    event = immune_data$os_event) ~
+#                 cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# # coxph(Surv(time = immune_data$mo_os_from_infusion, 
+# #              event = immune_data$os_event) ~ 
+# #         percent_cd3_plus + age + race_eth, 
+# #         data =  immune_data) %>%
+# #   tbl_regression(exponentiate = TRUE) %>% 
+# #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") %>%
+# #     modify_spanning_header(everything() ~ "Multivariable")
+# 
+# tbl_multi <- tbl_stack(list(tbl1, tbl2, tbl3, tbl4,
+#                             tbl5, tbl6, tbl7, tbl8,
+#                             tbl9, tbl10, tbl11, tbl12,
+#                             tbl13, tbl14, tbl15, tbl16))
+# tbl_merge(list(tbl_multi, tbl_uni), tab_spanner = c("**Multivariable adjusted by age+sex**", "**Univariable**"))
+```
+
+## KM
+```{r KM OS, fig.width= 6, fig.height=4}
 ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ 1, 
                    data = immune_data),
            font.x = c(18, "bold", "black"), 
@@ -479,68 +742,6 @@ ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ 1,
            # break.time.by = 3,
            # legend.title = "",
            ylab = "OS probability",
-           xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set1") 
-) + guides(colour = guide_legend(ncol = 2))
+           xlab = "Time (in months)"
+)
 ```
-
-# Logistic regression
-```{r}
-immune_data_lm <- immune_data %>% 
-  mutate(gr2_CRS = case_when(
-    gr2_CRS == "Grade <2"    ~ 0,
-    gr2_CRS == "Grade ≥2"   ~ 1
-  ))
-
-glm(gr2_CRS ~ percent_cd138_positive_cells + age,
-    data = immune_data_lm,
-    family = "binomial") %>%
-  tbl_regression(exponentiate = TRUE,
-                 intercept = TRUE) %>%
-  add_nevent(location = "level") %>% add_n(location = "level") %>%
-  modify_spanning_header(everything() ~ "**Grade 2+ CRS**") %>%
-  bold_p(t = .05)
-
-```
-
-# Ratio Immune cells / plasma cells
-```{r}
-rate_data <- immune_data %>%
-  select(mrn, total_cells : cd3plus_pd1plus_lag3plus_tim3plus_cells) %>%
-  mutate(across(where(is.numeric), ~ . / cd138_positive_cells)) %>%
-  `colnames<-`(c("mrn", str_c(colnames(.)[2:ncol(.)], "_plasma_cells_rate")))
-
-immune_data <- immune_data %>%
-  full_join(., rate_data,
-            by = "mrn")
-```
-
-```{r}
-immune_data %>%
-  select(ends_with("_plasma_cells_rate")) %>%
-  tbl_summary() %>%
-  bold_labels()
-```
-
-plot with different scale to visualise separately
-```{r, fig.height=8}
-immune_data %>%
-  select(ends_with("_plasma_cells_rate")) %>%
-  pivot_longer(cols = everything(),
-               names_to = "cell type",
-               values_to = "cell count") %>%
-  ggplot(aes(x= `cell type`, y= `cell count`, color= `cell type`))+
-  geom_boxplot()+
-  geom_jitter(color= "darkgrey")+
-  facet_wrap(. ~ `cell type`,
-             ncol = 3, scales = "free")+
-  theme(legend.position = "none")
-```
-
-
-
-
-
-
-
-
-
