@@ -69,7 +69,7 @@ immune_data <- immune_data %>%
 
 rate_data <- immune_data %>%
   select(mrn, cd3_plus, cd3plus_lag3plus : cd3plus_pd1plus_lag3plus_tim3plus) %>%
-  mutate(across(-c(mrn, cd3_plus), ~ . / cd3_plus)) %>%
+  mutate(across(-c(mrn, cd3_plus), ~ (. / cd3_plus) * 100)) %>%
   `colnames<-`(c("mrn", "cd3_plus", str_c(colnames(.)[3:ncol(.)], ".CD3ratio")))
 
 immune_data <- immune_data %>%
@@ -745,3 +745,507 @@ ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ 1,
            xlab = "Time (in months)"
 )
 ```
+
+<div class = "row">
+<div class = "col-md-6">
+```{r KM OS strat, fig.width= 6, fig.height=4}
+ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ cd138_cat, 
+                   data = immune_data),
+           font.x = c(18, "bold", "black"), 
+           font.y = c(18, "bold", "black"), 
+           font.legend = c(16, "black"),
+           font.tickslab = c(14, "black"), 
+           size = 1.5,
+
+           pval=TRUE,
+           # risk.table = TRUE,
+           # break.time.by = 3,
+           # legend.title = "",
+           ylab = "OS probability",
+           xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Paired") 
+) + guides(colour = guide_legend(ncol = 1))
+ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ cd3_cat, 
+                   data = immune_data),
+           font.x = c(18, "bold", "black"), 
+           font.y = c(18, "bold", "black"), 
+           font.legend = c(16, "black"),
+           font.tickslab = c(14, "black"), 
+           size = 1.5,
+
+           pval=TRUE,
+           # risk.table = TRUE,
+           # break.time.by = 3,
+           # legend.title = "",
+           ylab = "OS probability",
+           xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set2") 
+) + guides(colour = guide_legend(ncol = 1))
+ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ cd3plus_cd8plus_cat, 
+                   data = immune_data),
+           font.x = c(18, "bold", "black"), 
+           font.y = c(18, "bold", "black"), 
+           font.legend = c(16, "black"),
+           font.tickslab = c(14, "black"), 
+           size = 1.5,
+
+           pval=TRUE,
+           # risk.table = TRUE,
+           # break.time.by = 3,
+           # legend.title = "",
+           ylab = "OS probability",
+           xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set2") 
+) + guides(colour = guide_legend(ncol = 1))
+ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ cd3plus_lag3plus.CD3ratio_cat, 
+                   data = immune_data),
+           font.x = c(18, "bold", "black"), 
+           font.y = c(18, "bold", "black"), 
+           font.legend = c(16, "black"),
+           font.tickslab = c(14, "black"), 
+           size = 1.5,
+
+           pval=TRUE,
+           # risk.table = TRUE,
+           # break.time.by = 3,
+           # legend.title = "",
+           ylab = "OS probability",
+           xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set1") 
+) + guides(colour = guide_legend(ncol = 1))
+```
+</div>
+
+<div class = "col-md-6">
+```{r KM OS strat2, fig.width= 6, fig.height=4}
+ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ cd3plus_tim3plus.CD3ratio_cat, 
+                   data = immune_data),
+           font.x = c(18, "bold", "black"), 
+           font.y = c(18, "bold", "black"), 
+           font.legend = c(16, "black"),
+           font.tickslab = c(14, "black"), 
+           size = 1.5,
+
+           pval=TRUE,
+           # risk.table = TRUE,
+           # break.time.by = 3,
+           # legend.title = "",
+           ylab = "OS probability",
+           xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set1") 
+) + guides(colour = guide_legend(ncol = 1))
+ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ cd3plus_pd1plus_lag3plus.CD3ratio_cat, 
+                   data = immune_data),
+           font.x = c(18, "bold", "black"), 
+           font.y = c(18, "bold", "black"), 
+           font.legend = c(16, "black"),
+           font.tickslab = c(14, "black"), 
+           size = 1.5,
+
+           pval=TRUE,
+           # risk.table = TRUE,
+           # break.time.by = 3,
+           # legend.title = "",
+           ylab = "OS probability",
+           xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set2") 
+) + guides(colour = guide_legend(ncol = 1))
+
+
+ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ cd3plus_pd1plus_tim3plus.CD3ratio_cat, 
+                   data = immune_data),
+           font.x = c(18, "bold", "black"), 
+           font.y = c(18, "bold", "black"), 
+           font.legend = c(16, "black"),
+           font.tickslab = c(14, "black"), 
+           size = 1.5,
+
+           pval=TRUE,
+           # risk.table = TRUE,
+           # break.time.by = 3,
+           # legend.title = "",
+           ylab = "OS probability",
+           xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set1") 
+) + guides(colour = guide_legend(ncol = 1))
+ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat, 
+                   data = immune_data),
+           font.x = c(18, "bold", "black"), 
+           font.y = c(18, "bold", "black"), 
+           font.legend = c(16, "black"),
+           font.tickslab = c(14, "black"), 
+           size = 1.5,
+
+           pval=TRUE,
+           # risk.table = TRUE,
+           # break.time.by = 3,
+           # legend.title = "",
+           ylab = "OS probability",
+           xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set1") 
+) + guides(colour = guide_legend(ncol = 1))
+```
+</div>
+</div>
+
+
+# Progression free survival
+## HR
+```{r}
+tbl_uni <- immune_data %>% 
+  select(pfs_event, mo_pfs_from_infusion,
+         percent_cd3_plus : percent_cd3plus_cd8plus,
+         ends_with(".CD3ratio"),
+         cd138_cat, cd3_cat, 
+         cd3plus_cd8plus_cat, 
+         cd3plus_lag3plus.CD3ratio_cat, 
+         cd3plus_tim3plus.CD3ratio_cat, cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_tim3plus.CD3ratio_cat, 
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat,
+         
+         age, race_eth, race,
+         race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown) %>%
+  tbl_uvregression(method = survival::coxph,
+                   y = (Surv(time = immune_data$mo_pfs_from_infusion,
+                             event = immune_data$pfs_event)),
+                   exponentiate = TRUE) %>%
+  bold_labels() %>% italicize_levels() %>%
+  bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+tbl_uni
+# tbl1 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion, 
+#                    event = immune_data$pfs_event) ~
+#                 percent_cd3_plus +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE,
+#                  include = percent_cd3_plus) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl2 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion, 
+#                    event = immune_data$pfs_event) ~
+#                 percent_cd138_plus +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = percent_cd138_plus) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl3 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion, 
+#                    event = immune_data$pfs_event) ~
+#                 percent_cd3plus_cd8plus +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = percent_cd3plus_cd8plus) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl4 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion, 
+#                    event = immune_data$pfs_event) ~
+#                 cd3plus_lag3plus.CD3ratio +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_lag3plus.CD3ratio) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl5 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion, 
+#                    event = immune_data$pfs_event) ~
+#                 cd3plus_tim3plus.CD3ratio +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_tim3plus.CD3ratio) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl6 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion, 
+#                    event = immune_data$pfs_event) ~
+#                 cd3plus_pd1plus_lag3plus.CD3ratio +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_pd1plus_lag3plus.CD3ratio) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl7 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion, 
+#                    event = immune_data$pfs_event) ~
+#                 cd3plus_pd1plus_tim3plus.CD3ratio +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_pd1plus_tim3plus.CD3ratio) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl8 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion, 
+#                    event = immune_data$pfs_event) ~
+#                 cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl9 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion, 
+#                    event = immune_data$pfs_event) ~
+#                 cd138_cat +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd138_cat) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl10 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion, 
+#                    event = immune_data$pfs_event) ~
+#                 cd3_cat +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3_cat) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl11 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion, 
+#                    event = immune_data$pfs_event) ~
+#                 cd3plus_cd8plus_cat +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_cd8plus_cat) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl12 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion, 
+#                    event = immune_data$pfs_event) ~
+#                 cd3plus_lag3plus.CD3ratio_cat +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_lag3plus.CD3ratio_cat) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl13 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion, 
+#                    event = immune_data$pfs_event) ~
+#                 cd3plus_tim3plus.CD3ratio_cat +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_tim3plus.CD3ratio_cat) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl14 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion, 
+#                    event = immune_data$pfs_event) ~
+#                 cd3plus_pd1plus_lag3plus.CD3ratio_cat +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_pd1plus_lag3plus.CD3ratio_cat) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl15 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion, 
+#                    event = immune_data$pfs_event) ~
+#                 cd3plus_pd1plus_tim3plus.CD3ratio_cat +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_pd1plus_tim3plus.CD3ratio_cat) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# tbl16 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion, 
+#                    event = immune_data$pfs_event) ~
+#                 cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat +
+#                 age + sex,
+#               data =  immune_data) %>%
+#   tbl_regression(exponentiate = TRUE, 
+#                  include = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat) %>%
+#   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level")
+# 
+# # coxph(Surv(time = immune_data$mo_pfs_from_infusion, 
+# #              event = immune_data$pfs_event) ~ 
+# #         percent_cd3_plus + age + race_eth, 
+# #         data =  immune_data) %>%
+# #   tbl_regression(exponentiate = TRUE) %>% 
+# #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") %>%
+# #     modify_spanning_header(everything() ~ "Multivariable")
+# 
+# tbl_multi <- tbl_stack(list(tbl1, tbl2, tbl3, tbl4,
+#                             tbl5, tbl6, tbl7, tbl8,
+#                             tbl9, tbl10, tbl11, tbl12,
+#                             tbl13, tbl14, tbl15, tbl16))
+# tbl_merge(list(tbl_multi, tbl_uni), tab_spanner = c("**Multivariable adjusted by age+sex**", "**Univariable**"))
+```
+
+## KM
+```{r KM PFS, fig.width= 6, fig.height=4}
+ggsurvplot(survfit(Surv(mo_os_from_infusion, pfs_event) ~ 1, 
+                   data = immune_data),
+           font.x = c(18, "bold", "black"), 
+           font.y = c(18, "bold", "black"), 
+           legend = "none",
+           font.tickslab = c(14, "black"), 
+           size = 1.5,
+
+           #pval=TRUE, 
+           # risk.table = TRUE,
+           # break.time.by = 3,
+           # legend.title = "",
+           ylab = "PFS probability",
+           xlab = "Time (in months)"
+)
+```
+
+
+<div class = "row">
+<div class = "col-md-6">
+```{r KM PFS strat, fig.width= 6, fig.height=4}
+ggsurvplot(survfit(Surv(mo_pfs_from_infusion, pfs_event) ~ cd138_cat, 
+                   data = immune_data),
+           font.x = c(18, "bold", "black"), 
+           font.y = c(18, "bold", "black"), 
+           font.legend = c(16, "black"),
+           font.tickslab = c(14, "black"), 
+           size = 1.5,
+
+           pval=TRUE,
+           # risk.table = TRUE,
+           # break.time.by = 3,
+           # legend.title = "",
+           ylab = "PFS probability",
+           xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Paired") 
+) + guides(colour = guide_legend(ncol = 1))
+ggsurvplot(survfit(Surv(mo_pfs_from_infusion, pfs_event) ~ cd3_cat, 
+                   data = immune_data),
+           font.x = c(18, "bold", "black"), 
+           font.y = c(18, "bold", "black"), 
+           font.legend = c(16, "black"),
+           font.tickslab = c(14, "black"), 
+           size = 1.5,
+
+           pval=TRUE,
+           # risk.table = TRUE,
+           # break.time.by = 3,
+           # legend.title = "",
+           ylab = "PFS probability",
+           xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set2") 
+) + guides(colour = guide_legend(ncol = 1))
+ggsurvplot(survfit(Surv(mo_pfs_from_infusion, pfs_event) ~ cd3plus_cd8plus_cat, 
+                   data = immune_data),
+           font.x = c(18, "bold", "black"), 
+           font.y = c(18, "bold", "black"), 
+           font.legend = c(16, "black"),
+           font.tickslab = c(14, "black"), 
+           size = 1.5,
+
+           pval=TRUE,
+           # risk.table = TRUE,
+           # break.time.by = 3,
+           # legend.title = "",
+           ylab = "PFS probability",
+           xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set2") 
+) + guides(colour = guide_legend(ncol = 1))
+ggsurvplot(survfit(Surv(mo_pfs_from_infusion, pfs_event) ~ cd3plus_lag3plus.CD3ratio_cat, 
+                   data = immune_data),
+           font.x = c(18, "bold", "black"), 
+           font.y = c(18, "bold", "black"), 
+           font.legend = c(16, "black"),
+           font.tickslab = c(14, "black"), 
+           size = 1.5,
+
+           pval=TRUE,
+           # risk.table = TRUE,
+           # break.time.by = 3,
+           # legend.title = "",
+           ylab = "PFS probability",
+           xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set1") 
+) + guides(colour = guide_legend(ncol = 1))
+```
+</div>
+
+<div class = "col-md-6">
+```{r KM PFS strat2, fig.width= 6, fig.height=4}
+ggsurvplot(survfit(Surv(mo_pfs_from_infusion, pfs_event) ~ cd3plus_tim3plus.CD3ratio_cat, 
+                   data = immune_data),
+           font.x = c(18, "bold", "black"), 
+           font.y = c(18, "bold", "black"), 
+           font.legend = c(16, "black"),
+           font.tickslab = c(14, "black"), 
+           size = 1.5,
+
+           pval=TRUE,
+           # risk.table = TRUE,
+           # break.time.by = 3,
+           # legend.title = "",
+           ylab = "PFS probability",
+           xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set1") 
+) + guides(colour = guide_legend(ncol = 1))
+ggsurvplot(survfit(Surv(mo_pfs_from_infusion, pfs_event) ~ cd3plus_pd1plus_lag3plus.CD3ratio_cat, 
+                   data = immune_data),
+           font.x = c(18, "bold", "black"), 
+           font.y = c(18, "bold", "black"), 
+           font.legend = c(16, "black"),
+           font.tickslab = c(14, "black"), 
+           size = 1.5,
+
+           pval=TRUE,
+           # risk.table = TRUE,
+           # break.time.by = 3,
+           # legend.title = "",
+           ylab = "PFS probability",
+           xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set2") 
+) + guides(colour = guide_legend(ncol = 1))
+
+
+ggsurvplot(survfit(Surv(mo_pfs_from_infusion, pfs_event) ~ cd3plus_pd1plus_tim3plus.CD3ratio_cat, 
+                   data = immune_data),
+           font.x = c(18, "bold", "black"), 
+           font.y = c(18, "bold", "black"), 
+           font.legend = c(16, "black"),
+           font.tickslab = c(14, "black"), 
+           size = 1.5,
+
+           pval=TRUE,
+           # risk.table = TRUE,
+           # break.time.by = 3,
+           # legend.title = "",
+           ylab = "PFS probability",
+           xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set1") 
+) + guides(colour = guide_legend(ncol = 1))
+ggsurvplot(survfit(Surv(mo_pfs_from_infusion, pfs_event) ~ cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat, 
+                   data = immune_data),
+           font.x = c(18, "bold", "black"), 
+           font.y = c(18, "bold", "black"), 
+           font.legend = c(16, "black"),
+           font.tickslab = c(14, "black"), 
+           size = 1.5,
+
+           pval=TRUE,
+           # risk.table = TRUE,
+           # break.time.by = 3,
+           # legend.title = "",
+           ylab = "PFS probability",
+           xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set1") 
+) + guides(colour = guide_legend(ncol = 1))
+```
+</div>
+</div>
+
+
+<!-- # Logistic regression -->
+<!-- ```{r} -->
+<!-- immune_data_lm <- immune_data %>%  -->
+<!--   mutate(gr2_CRS = case_when( -->
+<!--     gr2_CRS == "Grade <2"    ~ 0, -->
+<!--     gr2_CRS == "Grade ≥2"   ~ 1 -->
+<!--   )) -->
+
+<!-- glm(gr2_CRS ~ percent_cd138_positive_cells + age, -->
+<!--     data = immune_data_lm, -->
+<!--     family = "binomial") %>% -->
+<!--   tbl_regression(exponentiate = TRUE, -->
+<!--                  intercept = TRUE) %>% -->
+<!--   add_nevent(location = "level") %>% add_n(location = "level") %>% -->
+<!--   modify_spanning_header(everything() ~ "**Grade 2+ CRS**") %>% -->
+<!--   bold_p(t = .05) -->
+
+<!-- ``` -->
+
+
+
+
+
+
+
+
+
+
+
+
+
