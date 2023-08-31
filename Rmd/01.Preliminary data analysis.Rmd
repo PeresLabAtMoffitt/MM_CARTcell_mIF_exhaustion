@@ -45,7 +45,7 @@ library(gtsummary)
 library(labelled)
 library(survminer)
 library(survival)
-theme_set(theme_classic())
+theme_set(theme_classic(base_size = 18))
 theme_gtsummary_compact()
 ```
 
@@ -54,7 +54,6 @@ immune_data <-
   read_rds(paste0(here::here(), "/immune_data.rds"))
 ```
 
-# Ratio Immune cells / plasma cells
 ```{r create cell ratio and cat}
 immune_data <- immune_data %>%
   select(-c(
@@ -129,8 +128,8 @@ immune_data <- immune_data %>%
 
 ```
 
-# Explore overall immune data
-## Immune cell count
+# I.Explore overall immune data
+## 1.Immune cell count
 ```{r}
 immune_data %>%
   select(percent_cd3_plus : percent_cd3plus_cd8plus,
@@ -169,7 +168,7 @@ immune_data %>%
   theme(legend.position = "none")
 ```
 
-## How does activation and exhaustion marker correlate with plasma cell presence?
+## 2.How does activation and exhaustion marker correlate with plasma cell presence?
 
 ```{r}
 # library(corrplot)
@@ -276,7 +275,7 @@ var_label(immune_data) <-
        mon12response_v2 = "12 Month Response", ORR_12mon = "12 Month ORR",
        CRorbetter_12mon = "12 Month CR or better",
        mon12response_MRD = "12 Month Response with MRD",
-       gr2_CRS = "CRS grade (<2 vs. ≥2)", gr2_ICANS = "ICANS grade (<2 vs. ≥2",
+       gr2_CRS = "CRS grade (<2 vs. ≥2)", gr2_ICANS = "ICANS grade (<2 vs. ≥2)",
        baseline_ferritin = "Baseline ferritin, < 400 vs. ≥ 400",
        baseline_crp = "Baseline CRP, < 0.5 vs. ≥ 0.5", inpatientbed = "Inpatient bed days",
        inpatientbed_costs = "Estimated costs, inpatient bed days",
@@ -316,8 +315,8 @@ var_label(immune_data) <-
 
 ```
 
-# Explore clinical
-## Patients characteristics
+# II.Explore clinical
+## 1.Patients characteristics
 ```{r}
 immune_data %>%
   select(age, agecat, male_sex, sex, race_eth, subtype,
@@ -372,7 +371,7 @@ immune_data %>%
 
 
 
-## Safety
+## 2.Safety
 
 ```{r}
 immune_data %>%
@@ -415,7 +414,7 @@ immune_data %>%
   modify_footnote(update = everything() ~ NA)
 ```
 
-## Responses
+## 3.Responses
 
 Any patient that did not reach the time point of interest or had a missing response was considered missing the response assessment at that time point. A patient who died or progressed before the time point of interest was considered a PD response.
 
@@ -437,7 +436,7 @@ immune_data %>%
 ```
 
 
-# Correlation plasma cell vs clinical
+# III.Correlation plasma cell vs clinical
 ```{r}
 cor(immune_data[, c("bm_plasma_cell_percent_at_pre_ld", "percent_cd138_plus")], use = "complete.obs")
 immune_data %>%
@@ -462,7 +461,165 @@ immune_data %>%
   geom_jitter()
 ```
 
-# Immune cell in CART treatment context
+# IV.Explore immune cells in the context of clinical
+## 1.by gr2_CRS
+
+<div class = "row">
+<div class = "col-md-6">
+```{r}
+immune_data %>% 
+  filter(!is.na(gr2_CRS)) %>% 
+  ggplot(aes(x = gr2_CRS, y = percent_cd3plus_cd8plus))+
+  geom_boxplot()+
+  labs(x = "CRS grade (<2 vs. ≥2)", y = "CD3+CD8+ (%)")
+immune_data %>% 
+  filter(!is.na(gr2_CRS)) %>% 
+  ggplot(aes(x = gr2_CRS, y = cd3plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "CRS grade (<2 vs. ≥2)", y = "CD3+TIM3+/CD3+")
+immune_data %>% 
+  filter(!is.na(gr2_CRS)) %>% 
+  ggplot(aes(x = gr2_CRS, y = cd3plus_pd1plus_lag3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "CRS grade (<2 vs. ≥2)", y = "CD3+PD1+LAG3+/CD3+")
+```
+</div>
+
+<div class = "col-md-6">
+```{r}
+immune_data %>% 
+  filter(!is.na(gr2_CRS)) %>% 
+  ggplot(aes(x = gr2_CRS, y = cd3plus_pd1plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "CRS grade (<2 vs. ≥2)", y = "CD3+PD1+TIM3+/CD3+")
+immune_data %>% 
+  filter(!is.na(gr2_CRS)) %>% 
+  ggplot(aes(x = gr2_CRS, y = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "CRS grade (<2 vs. ≥2)", y = "CD3+PD1+LAG3+TIM3+/CD3+")
+```
+</div>
+</div>
+
+## 2.by gr2_ICANS
+
+<div class = "row">
+<div class = "col-md-6">
+```{r}
+immune_data %>% 
+  filter(!is.na(gr2_ICANS)) %>% 
+  ggplot(aes(x = gr2_ICANS, y = percent_cd3plus_cd8plus))+
+  geom_boxplot()+
+  labs(x = "ICANS grade (<2 vs. ≥2)", y = "CD3+CD8+ (%)")
+immune_data %>% 
+  filter(!is.na(gr2_ICANS)) %>% 
+  ggplot(aes(x = gr2_ICANS, y = cd3plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "ICANS grade (<2 vs. ≥2)", y = "CD3+TIM3+/CD3+")
+immune_data %>% 
+  filter(!is.na(gr2_ICANS)) %>% 
+  ggplot(aes(x = gr2_ICANS, y = cd3plus_pd1plus_lag3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "ICANS grade (<2 vs. ≥2)", y = "CD3+PD1+LAG3+/CD3+")
+```
+</div>
+
+<div class = "col-md-6">
+```{r}
+immune_data %>% 
+  filter(!is.na(gr2_ICANS)) %>% 
+  ggplot(aes(x = gr2_ICANS, y = cd3plus_pd1plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "ICANS grade (<2 vs. ≥2)", y = "CD3+PD1+TIM3+/CD3+")
+immune_data %>% 
+  filter(!is.na(gr2_ICANS)) %>% 
+  ggplot(aes(x = gr2_ICANS, y = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "ICANS grade (<2 vs. ≥2)", y = "CD3+PD1+LAG3+TIM3+/CD3+")
+```
+</div>
+</div>
+
+## 3.by ORR_30days
+
+<div class = "row">
+<div class = "col-md-6">
+```{r}
+immune_data %>% 
+  filter(!is.na(ORR_30days)) %>% 
+  ggplot(aes(x = ORR_30days, y = percent_cd3plus_cd8plus))+
+  geom_boxplot()+
+  labs(x = "Day 30 ORR", y = "CD3+CD8+ (%)")
+immune_data %>% 
+  filter(!is.na(ORR_30days)) %>% 
+  ggplot(aes(x = ORR_30days, y = cd3plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "Day 30 ORR", y = "CD3+TIM3+/CD3+")
+immune_data %>% 
+  filter(!is.na(ORR_30days)) %>% 
+  ggplot(aes(x = ORR_30days, y = cd3plus_pd1plus_lag3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "Day 30 ORR", y = "CD3+PD1+LAG3+/CD3+")
+```
+</div>
+
+<div class = "col-md-6">
+```{r}
+immune_data %>% 
+  filter(!is.na(ORR_30days)) %>% 
+  ggplot(aes(x = ORR_30days, y = cd3plus_pd1plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "Day 30 ORR", y = "CD3+PD1+TIM3+/CD3+")
+immune_data %>% 
+  filter(!is.na(ORR_30days)) %>% 
+  ggplot(aes(x = ORR_30days, y = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "Day 30 ORR", y = "CD3+PD1+LAG3+TIM3+/CD3+")
+```
+</div>
+</div>
+
+## 4.by best_ORR
+
+<div class = "row">
+<div class = "col-md-6">
+```{r}
+immune_data %>% 
+  filter(!is.na(best_ORR)) %>% 
+  ggplot(aes(x = best_ORR, y = percent_cd3plus_cd8plus))+
+  geom_boxplot()+
+  labs(x = "Best ORR", y = "CD3+CD8+ (%)")
+immune_data %>% 
+  filter(!is.na(best_ORR)) %>% 
+  ggplot(aes(x = best_ORR, y = cd3plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "Best ORR", y = "CD3+TIM3+/CD3+")
+immune_data %>% 
+  filter(!is.na(best_ORR)) %>% 
+  ggplot(aes(x = best_ORR, y = cd3plus_pd1plus_lag3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "Best ORR", y = "CD3+PD1+LAG3+/CD3+")
+```
+</div>
+
+<div class = "col-md-6">
+```{r}
+immune_data %>% 
+  filter(!is.na(best_ORR)) %>% 
+  ggplot(aes(x = best_ORR, y = cd3plus_pd1plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "Best ORR", y = "CD3+PD1+TIM3+/CD3+")
+immune_data %>% 
+  filter(!is.na(best_ORR)) %>% 
+  ggplot(aes(x = best_ORR, y = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "Best ORR", y = "CD3+PD1+LAG3+TIM3+/CD3+")
+```
+</div>
+</div>
+
+
+# V.Immune cell in CART treatment context
 Look at CRS_gradecat or gr3_CRS, gr2_CRS (CD138, 8, PD1+others)  
 ICANS (PD1+others?)  
 
@@ -510,7 +667,7 @@ for (i in table_var){
 
 ```
 
-# Immune cell in CART response
+# VI.Immune cell in CART response
 worse response for high lag3 patients?
 ```{r, results = 'asis'}
 table_var <- c(# "day30response_v2", "mon3response_v2", "mon6response_v2", "mon9response_v2", 
@@ -545,8 +702,8 @@ for (i in table_var){
 
 ```
 
-# Overall survival
-## HR
+# VII.Overall survival
+## 1.HR
 ```{r}
 tbl_uni <- immune_data %>% 
   select(os_event, mo_os_from_infusion,
@@ -559,8 +716,9 @@ tbl_uni <- immune_data %>%
          cd3plus_pd1plus_tim3plus.CD3ratio_cat, 
          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat,
          
-         age, race_eth, race,
-         race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown) %>%
+         age#, race_eth, race,
+         # race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown
+         ) %>%
   tbl_uvregression(method = survival::coxph,
                    y = (Surv(time = immune_data$mo_os_from_infusion,
                              event = immune_data$os_event)),
@@ -727,7 +885,7 @@ tbl_uni
 # tbl_merge(list(tbl_multi, tbl_uni), tab_spanner = c("**Multivariable adjusted by age+sex**", "**Univariable**"))
 ```
 
-## KM
+## 2.KM
 ```{r KM OS, fig.width= 6, fig.height=4}
 ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ 1, 
                    data = immune_data),
@@ -881,8 +1039,8 @@ ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ cd3plus_pd1plus_lag3plu
 </div>
 
 
-# Progression free survival
-## HR
+# VIII.Progression free survival
+## 1.HR
 ```{r}
 tbl_uni <- immune_data %>% 
   select(pfs_event, mo_pfs_from_infusion,
@@ -895,8 +1053,9 @@ tbl_uni <- immune_data %>%
          cd3plus_pd1plus_tim3plus.CD3ratio_cat, 
          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat,
          
-         age, race_eth, race,
-         race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown) %>%
+         age#, race_eth, race,
+         # race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown
+         ) %>%
   tbl_uvregression(method = survival::coxph,
                    y = (Surv(time = immune_data$mo_pfs_from_infusion,
                              event = immune_data$pfs_event)),
@@ -1063,7 +1222,7 @@ tbl_uni
 # tbl_merge(list(tbl_multi, tbl_uni), tab_spanner = c("**Multivariable adjusted by age+sex**", "**Univariable**"))
 ```
 
-## KM
+## 2.KM
 ```{r KM PFS, fig.width= 6, fig.height=4}
 ggsurvplot(survfit(Surv(mo_os_from_infusion, pfs_event) ~ 1, 
                    data = immune_data),
@@ -1217,15 +1376,223 @@ ggsurvplot(survfit(Surv(mo_pfs_from_infusion, pfs_event) ~ cd3plus_pd1plus_lag3p
 </div>
 </div>
 
+# IX.Subsetting marrow burden
+```{r high marrow subset}
+high_marrow_subset <- immune_data %>% 
+  filter(!is.na(high_marrow_burden_50_percent))
+marrow_Yes <- high_marrow_subset %>% 
+  filter(high_marrow_burden_50_percent == "Yes")
+marrow_No <- high_marrow_subset %>% 
+  filter(high_marrow_burden_50_percent == "No")
+```
 
-<!-- # Logistic regression -->
+## 1.Table by marrow burden
+```{r}
+high_marrow_subset %>% 
+  select(gr2_CRS, gr2_ICANS, ORR_30days, best_ORR,
+         high_marrow_burden_50_percent) %>% 
+  tbl_summary(by= high_marrow_burden_50_percent) %>% 
+  bold_labels() %>%
+  add_p() %>% bold_p(t= 0.05) %>%
+  modify_spanning_header(everything() ~ "Marrow burden (50%)")
+```
+
+## 2.Stratified analyses - cell type vs tox/response by marrow burden
+```{r}
+tbl1 <- marrow_Yes %>% 
+  select(gr2_CRS, cd3plus_cd8plus_cat,
+         cd3plus_tim3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat,
+         percent_cd3plus_cd8plus,
+         cd3plus_tim3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>% 
+  tbl_summary(by= gr2_CRS) %>% 
+  bold_labels() %>%
+  add_p() %>% bold_p(t= 0.05)
+
+tbl2 <- marrow_No %>% 
+  select(gr2_CRS, cd3plus_cd8plus_cat,
+         cd3plus_tim3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat,
+         percent_cd3plus_cd8plus,
+         cd3plus_tim3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>% 
+  tbl_summary(by= gr2_CRS) %>% 
+  bold_labels() %>%
+  add_p() %>% bold_p(t= 0.05)
+tbl_merge(list(tbl1, tbl2), tab_spanner = c("High marrow", "Low marrow")) %>%
+  modify_caption("**CRS grade (<2 vs. ≥2)** (N = {N})")
+
+tbl1 <- marrow_Yes %>% 
+  select(gr2_ICANS, cd3plus_cd8plus_cat,
+         cd3plus_tim3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat,
+         percent_cd3plus_cd8plus,
+         cd3plus_tim3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>% 
+  tbl_summary(by= gr2_ICANS) %>% 
+  bold_labels() %>%
+  add_p() %>% bold_p(t= 0.05)
+
+tbl2 <- marrow_No %>% 
+  select(gr2_ICANS, cd3plus_cd8plus_cat,
+         cd3plus_tim3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat,
+         percent_cd3plus_cd8plus,
+         cd3plus_tim3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>% 
+  tbl_summary(by= gr2_ICANS) %>% 
+  bold_labels() %>%
+  add_p() %>% bold_p(t= 0.05)
+tbl_merge(list(tbl1, tbl2), tab_spanner = c("High marrow", "Low marrow")) %>%
+  modify_caption("**ICANS grade (<2 vs. ≥2)** (N = {N})")
+
+tbl1 <- marrow_Yes %>% 
+  select(ORR_30days, cd3plus_cd8plus_cat,
+         cd3plus_tim3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat,
+         percent_cd3plus_cd8plus,
+         cd3plus_tim3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>% 
+  tbl_summary(by= ORR_30days) %>% 
+  bold_labels() %>%
+  add_p() %>% bold_p(t= 0.05)
+
+tbl2 <- marrow_No %>% 
+  select(ORR_30days, cd3plus_cd8plus_cat,
+         cd3plus_tim3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat,
+         percent_cd3plus_cd8plus,
+         cd3plus_tim3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>% 
+  tbl_summary(by= ORR_30days) %>% 
+  bold_labels() %>%
+  add_p() %>% bold_p(t= 0.05)
+tbl_merge(list(tbl1, tbl2), tab_spanner = c("High marrow", "Low marrow")) %>%
+  modify_caption("**Day 30 ORR** (N = {N})")
+
+tbl1 <- marrow_Yes %>% 
+  select(best_ORR, cd3plus_cd8plus_cat,
+         cd3plus_tim3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat,
+         percent_cd3plus_cd8plus,
+         cd3plus_tim3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>% 
+  tbl_summary(by= best_ORR) %>% 
+  bold_labels() %>%
+  add_p() %>% bold_p(t= 0.05)
+
+tbl2 <- marrow_No %>% 
+  select(best_ORR, cd3plus_cd8plus_cat,
+         cd3plus_tim3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat,
+         percent_cd3plus_cd8plus,
+         cd3plus_tim3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus.CD3ratio,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>% 
+  tbl_summary(by= best_ORR) %>% 
+  bold_labels() %>%
+  add_p() %>% bold_p(t= 0.05)
+tbl_merge(list(tbl1, tbl2), tab_spanner = c("High marrow", "Low marrow")) %>%
+  modify_caption("**Best ORR** (N = {N})")
+```
+
+## 3.Survival
+### HR
+```{r}
+marrow_Yes %>% 
+  select(os_event, mo_os_from_infusion,
+         percent_cd3_plus : percent_cd3plus_cd8plus,
+         ends_with(".CD3ratio"),
+         cd138_cat, cd3_cat,
+         cd3plus_cd8plus_cat,
+         cd3plus_lag3plus.CD3ratio_cat,
+         cd3plus_tim3plus.CD3ratio_cat, cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_tim3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat,
+         age
+         ) %>%
+  tbl_uvregression(method = survival::coxph,
+                   y = (Surv(time = marrow_Yes$mo_os_from_infusion,
+                             event = marrow_Yes$os_event)),
+                   exponentiate = TRUE) %>%
+  bold_labels() %>% italicize_levels() %>%
+  bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") %>%
+  modify_spanning_header(everything() ~ "Yes - Marrow burden (50%)")
+```
+
+```{r}
+marrow_No %>% 
+  select(os_event, mo_os_from_infusion,
+         percent_cd3_plus : percent_cd3plus_cd8plus,
+         ends_with(".CD3ratio"),
+         cd138_cat, cd3_cat,
+         cd3plus_cd8plus_cat,
+         cd3plus_lag3plus.CD3ratio_cat,
+         cd3plus_tim3plus.CD3ratio_cat, cd3plus_pd1plus_lag3plus.CD3ratio_cat,
+         cd3plus_pd1plus_tim3plus.CD3ratio_cat,
+         cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat,
+         age
+         ) %>%
+  tbl_uvregression(method = survival::coxph,
+                   y = (Surv(time = marrow_No$mo_os_from_infusion,
+                             event = marrow_No$os_event)),
+                   exponentiate = TRUE) %>%
+  bold_labels() %>% italicize_levels() %>%
+  bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") %>%
+  modify_spanning_header(everything() ~ "No - Marrow burden (50%)")
+```
+
+
+
+
+<!-- ### Logistic regression -->
 <!-- ```{r} -->
-<!-- immune_data_lm <- immune_data %>%  -->
+<!-- immune_data_lm <- high_marrow_subset %>% -->
 <!--   mutate(gr2_CRS = case_when( -->
 <!--     gr2_CRS == "Grade <2"    ~ 0, -->
 <!--     gr2_CRS == "Grade ≥2"   ~ 1 -->
 <!--   )) -->
 
+<!-- marrow_Yes <- immune_data_lm %>%  -->
+<!--   filter(high_marrow_burden_50_percent == "Yes") -->
+<!-- marrow_No <- immune_data_lm %>%  -->
+<!--   filter(high_marrow_burden_50_percent == "No") -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
 <!-- glm(gr2_CRS ~ percent_cd138_positive_cells + age, -->
 <!--     data = immune_data_lm, -->
 <!--     family = "binomial") %>% -->
