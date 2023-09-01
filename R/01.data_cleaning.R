@@ -34,8 +34,51 @@ clinical <-
   read_csv(paste0(path, "/data/raw data/Abecma_Moffitt_06282023.csv")) %>% 
   janitor::clean_names()
 
+mrn_tokeep_from_extra <- 
+  read_csv(
+    paste0(path, 
+           "/data/processed data/clinical_mrn_to_keep_from_phi_cytokine_pt_data_07062023.csv"))
+
+extra_clinical <-  
+  read_csv(paste0(path, "/data/raw data/phi_cytokine_pt_data_07-06-2023.csv")) %>% 
+  janitor::clean_names() %>% 
+  filter(str_detect(mrn, "706653")) %>% 
+  rename(date_of_car_t_infusion_number_of_days_from_apharesis_to_infusion = date_of_car_t_infusion,
+         day_of_max_crs_relative_to_infusion = date_of_max_crs,
+         max_icans_relative_to_infusion = max_icans,
+         day_of_max_icans_relative_to_infusion = date_of_max_icans,
+         crsonset_dt = date_of_crs_onset,
+         crslatest_dt = latest_date_of_crs,
+         crsduration = crs_duration,
+         icansonset_dt = date_of_icans_onset,
+         icanslatest_dt = latest_date_of_icans,
+         icansduration = icans_duration)
+
+rm(mrn_tokeep_from_extra)
+
 
 ############################################################# Clean data
+extra_clinical <- extra_clinical %>% 
+  mutate_at(c("amyloid_yes_no", "plasma_cell_leukemia_yes_no",
+              "poems"), ~ case_when(
+    . == "no"            ~ 0,
+    . == "yes"           ~ 1
+  )) %>% 
+  mutate_at(c("race",
+              "race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown"),
+            ~ case_when(
+    . == "caucasian"      ~ "White"
+  )) %>% 
+  mutate(ethnicity_yes_no_of_hispanic_latin_x_or_spanish_origin_unknown = case_when(
+    ethnicity_yes_no_of_hispanic_latin_x_or_spanish_origin_unknown == 
+      "nonhispanic"       ~ "no"
+  ))
+
+
+clinical <- clinical %>% 
+  bind_rows(., extra_clinical)
+write_csv(clinical, "cleaned clinical 110 patients.csv")
+
 immune_data <- mrn_map %>% 
   full_join(., mif_data,
             by = c("image_tag", "analysis_region")) %>% 
@@ -1024,6 +1067,7 @@ immune_data <- immune_data3 %>%
 
 
 write_rds(immune_data, paste0(here::here(), "/immune_data.rds"))
+write_csv(immune_data, paste0(here::here(), "/immune_data.csv"))
 
 
 check_data <- function(data){
