@@ -42,7 +42,7 @@ mrn_tokeep_from_extra <-
 extra_clinical <-  
   read_csv(paste0(path, "/data/raw data/phi_cytokine_pt_data_07-06-2023.csv")) %>% 
   janitor::clean_names() %>% 
-  filter(str_detect(mrn, mrn_tokeep_from_extra)) %>% 
+  filter(str_detect(mrn, as.character(mrn_tokeep_from_extra$mrn))) %>% 
   rename(date_of_car_t_infusion_number_of_days_from_apharesis_to_infusion = date_of_car_t_infusion,
          day_of_max_crs_relative_to_infusion = date_of_max_crs,
          max_icans_relative_to_infusion = max_icans,
