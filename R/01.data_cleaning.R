@@ -34,15 +34,15 @@ clinical <-
   read_csv(paste0(path, "/data/raw data/Abecma_Moffitt_06282023.csv")) %>% 
   janitor::clean_names()
 
-mrn_tokeep_from_extra <- 
-  read_csv(
-    paste0(path, 
-           "/data/processed data/clinical_mrn_to_keep_from_phi_cytokine_pt_data_07062023.csv"))
+# mrn_tokeep_from_extra <- 
+#   read_csv(
+#     paste0(path, 
+#            "/data/processed data/clinical_mrn_to_keep_from_phi_cytokine_pt_data_07062023.csv"))
 
 extra_clinical <-  
   read_csv(paste0(path, "/data/raw data/phi_cytokine_pt_data_07-06-2023.csv")) %>% 
   janitor::clean_names() %>% 
-  filter(str_detect(mrn, as.character(mrn_tokeep_from_extra$mrn))) %>% 
+  # filter(str_detect(mrn, as.character(mrn_tokeep_from_extra$mrn))) %>% 
   rename(date_of_car_t_infusion_number_of_days_from_apharesis_to_infusion = date_of_car_t_infusion,
          day_of_max_crs_relative_to_infusion = date_of_max_crs,
          max_icans_relative_to_infusion = max_icans,
@@ -54,7 +54,7 @@ extra_clinical <-
          icanslatest_dt = latest_date_of_icans,
          icansduration = icans_duration)
 
-rm(mrn_tokeep_from_extra)
+# rm(mrn_tokeep_from_extra)
 
 
 ############################################################# Clean data
@@ -75,28 +75,25 @@ extra_clinical <- extra_clinical %>%
   ))
 
 
-clinical <- clinical %>% 
-  bind_rows(., extra_clinical)
-write_csv(clinical, "cleaned clinical 110 patients.csv")
+clinical <- extra_clinical %>% 
+  bind_rows(., clinical) %>% 
+  distinct(mrn, .keep_all = TRUE)
+write_csv(clinical, "cleaned clinical patients.csv")
 
-immune_data <- mrn_map %>% 
-  full_join(., mif_data,
-            by = c("image_tag", "analysis_region")) %>% 
-  right_join(clinical, .,
-          by = "mrn") %>% 
+clinical <- clinical %>% 
   mutate(mrn = as.character(mrn)) %>% 
   # Homogenize string case
   mutate(across(c(where(is.character), 
                   -c(starts_with("x")),
                   c(contains("mrd"))
-                  ), ~ str_to_sentence(.) 
-                )) %>% 
+  ), ~ str_to_sentence(.) 
+  )) %>% 
   mutate(across(c(contains("response")), ~ str_to_upper(.) 
   )) %>% 
   mutate(across(c(contains("response")), ~ str_replace(., "SCR", "sCR") 
   ))
 
-immune_data1 <- immune_data %>% 
+clinical <- clinical %>% 
   # Fix class and Unknown
   mutate_at(c("extramedullary_disease_yes_no", 
               "ethnicity_yes_no_of_hispanic_latin_x_or_spanish_origin_unknown",
@@ -107,8 +104,8 @@ immune_data1 <- immune_data %>%
             ~ na_if(., "Tbd")) %>% 
   mutate(across(c(starts_with("day_of_max_"), starts_with("date"),
                   ends_with("date"), contains("_dt")
-                  ),
-                ~ as.Date(., format = "%m/%d/%y")
+  ),
+  ~ as.Date(., format = "%m/%d/%y")
   )) %>% 
   
   # Create new var
@@ -217,50 +214,50 @@ immune_data1 <- immune_data %>%
   )) %>% 
   
   # CRS ----
-  mutate(CRS_any = ifelse(max_crs_grade_0_5 == 0, "No", "Yes"),
-         CRS_any2 = ifelse(CRS_any == "No", 0, 1),
-         CRS_gradecat = case_when(
-           max_crs_grade_0_5 == 0                             ~ "No CRS",
-           max_crs_grade_0_5 == 1                             ~ "Grade 1 or 2",
-           max_crs_grade_0_5 == 2                             ~ "Grade 1 or 2",
-           max_crs_grade_0_5 >= 3                             ~ "Grade ≥3"),
-         CRS_gradecat = factor(CRS_gradecat, levels = c("No CRS", "Grade 1 or 2", "Grade ≥3")),
-         gr3_CRS = case_when(
-           max_crs_grade_0_5 %in% c(0:2)                      ~ "Grade <3",
-           max_crs_grade_0_5 %in% c(3:5)                      ~ "Grade ≥3",
-           TRUE                                                   ~ NA_character_
-         )) %>% 
+mutate(CRS_any = ifelse(max_crs_grade_0_5 == 0, "No", "Yes"),
+       CRS_any2 = ifelse(CRS_any == "No", 0, 1),
+       CRS_gradecat = case_when(
+         max_crs_grade_0_5 == 0                             ~ "No CRS",
+         max_crs_grade_0_5 == 1                             ~ "Grade 1 or 2",
+         max_crs_grade_0_5 == 2                             ~ "Grade 1 or 2",
+         max_crs_grade_0_5 >= 3                             ~ "Grade ≥3"),
+       CRS_gradecat = factor(CRS_gradecat, levels = c("No CRS", "Grade 1 or 2", "Grade ≥3")),
+       gr3_CRS = case_when(
+         max_crs_grade_0_5 %in% c(0:2)                      ~ "Grade <3",
+         max_crs_grade_0_5 %in% c(3:5)                      ~ "Grade ≥3",
+         TRUE                                                   ~ NA_character_
+       )) %>% 
   mutate(gr2_CRS = case_when(
     max_crs_grade_0_5 %in% c(0:1)                      ~ "Grade <2",
     max_crs_grade_0_5 %in% c(2:5)                      ~ "Grade ≥2",
     TRUE                                                   ~ NA_character_
   )) %>%
-
+  
   # ICANS ----
-  mutate(ICANS_any = ifelse(max_icans_relative_to_infusion == 0, "No", "Yes"),
-         ICANS_any2 = ifelse(ICANS_any == "No", 0, 1),
-         ICANS_gradecat = case_when(
-           max_icans_relative_to_infusion == 0 ~              "No ICANS",
-           max_icans_relative_to_infusion == 1 ~              "Grade 1 or 2",
-           max_icans_relative_to_infusion == 2 ~              "Grade 1 or 2",
-           max_icans_relative_to_infusion >= 3 ~              "Grade ≥3"),
-         ICANS_gradecat = factor(ICANS_gradecat, levels = c("No ICANS", "Grade 1 or 2", "Grade ≥3")),
-         gr3_ICANS = case_when(
-           max_icans_relative_to_infusion %in% c(0:2)         ~ "Grade <3",
-           max_icans_relative_to_infusion %in% c(3:5)         ~ "Grade ≥3",
-           TRUE                                                   ~ NA_character_
-         )) %>% 
+mutate(ICANS_any = ifelse(max_icans_relative_to_infusion == 0, "No", "Yes"),
+       ICANS_any2 = ifelse(ICANS_any == "No", 0, 1),
+       ICANS_gradecat = case_when(
+         max_icans_relative_to_infusion == 0 ~              "No ICANS",
+         max_icans_relative_to_infusion == 1 ~              "Grade 1 or 2",
+         max_icans_relative_to_infusion == 2 ~              "Grade 1 or 2",
+         max_icans_relative_to_infusion >= 3 ~              "Grade ≥3"),
+       ICANS_gradecat = factor(ICANS_gradecat, levels = c("No ICANS", "Grade 1 or 2", "Grade ≥3")),
+       gr3_ICANS = case_when(
+         max_icans_relative_to_infusion %in% c(0:2)         ~ "Grade <3",
+         max_icans_relative_to_infusion %in% c(3:5)         ~ "Grade ≥3",
+         TRUE                                                   ~ NA_character_
+       )) %>% 
   mutate(gr2_ICANS = case_when(
     max_icans_relative_to_infusion %in% c(0:1)         ~ "Grade <2",
     max_icans_relative_to_infusion %in% c(2:5)         ~ "Grade ≥2",
     TRUE                                                   ~ NA_character_
   )) %>% 
   # Cytopenia ----
-  mutate(Neutropenia_7d = case_when(
-    anc_day_7 < 1.8                                              ~ "Yes",
-    is.na(anc_day_7)                                          ~ NA_character_,
-    TRUE                                                          ~ "No"
-  )) %>% 
+mutate(Neutropenia_7d = case_when(
+  anc_day_7 < 1.8                                              ~ "Yes",
+  is.na(anc_day_7)                                          ~ NA_character_,
+  TRUE                                                          ~ "No"
+)) %>% 
   mutate(Neutropenia_30d = case_when(
     anc_day_30 < 1.8                                             ~ "Yes",
     is.na(anc_day_30)                                          ~ NA_character_,
@@ -617,10 +614,10 @@ immune_data1 <- immune_data %>%
     TRUE ~ "No"
   )) %>% 
   # Cell dose ----
-  mutate(cell_dose_million_cells = case_when(
-    cell_dose_million_cells == 999999                  ~ NA_real_, # Not necessary for this data but keep
-    TRUE                                               ~ cell_dose_million_cells
-  )) %>%
+mutate(cell_dose_million_cells = case_when(
+  cell_dose_million_cells == 999999                  ~ NA_real_, # Not necessary for this data but keep
+  TRUE                                               ~ cell_dose_million_cells
+)) %>%
   mutate(cart_cell_dose = case_when(
     cell_dose_million_cells >= 400                     ~ "≥ 400",
     cell_dose_million_cells < 400                      ~ "< 400",
@@ -628,20 +625,20 @@ immune_data1 <- immune_data %>%
   )) %>% 
   
   # Therapy ----
-  # mutate(bridging_therapy_yes_no = str_to_upper(bridging_therapy_yes_no)) %>%
-  # mutate(extramedullary_disease_yes_no = case_when(
-  #   extramedullary_disease_yes_no == "Unknown" ~ NA_character_,
-  #   TRUE ~ extramedullary_disease_yes_no
-  # )) %>%
-  # mutate(extramedullary_disease_yes_no = str_to_upper(extramedullary_disease_yes_no)) %>%
-  # mutate(prior_treatment_with_any_gene_therapy_based_therapeutic_or_investigational_cellular_therapy_or_bcma_targeted_therapy_yes_no = str_to_upper(prior_treatment_with_any_gene_therapy_based_therapeutic_or_investigational_cellular_therapy_or_bcma_targeted_therapy_yes_no)) %>%
-  # mutate(anakinra_yes_no = str_to_upper(anakinra_yes_no)) %>%
-  # mutate(non_secretory_mm_yes_no = str_to_upper(non_secretory_mm_yes_no)) %>%
-  mutate(plasma_cell_leukemia_yes_no = case_when(
-    plasma_cell_leukemia_yes_no == 0 ~ "No",
-    plasma_cell_leukemia_yes_no == 1 ~ "Yes",
-    is.na(plasma_cell_leukemia_yes_no) ~ NA_character_
-  )) %>%
+# mutate(bridging_therapy_yes_no = str_to_upper(bridging_therapy_yes_no)) %>%
+# mutate(extramedullary_disease_yes_no = case_when(
+#   extramedullary_disease_yes_no == "Unknown" ~ NA_character_,
+#   TRUE ~ extramedullary_disease_yes_no
+# )) %>%
+# mutate(extramedullary_disease_yes_no = str_to_upper(extramedullary_disease_yes_no)) %>%
+# mutate(prior_treatment_with_any_gene_therapy_based_therapeutic_or_investigational_cellular_therapy_or_bcma_targeted_therapy_yes_no = str_to_upper(prior_treatment_with_any_gene_therapy_based_therapeutic_or_investigational_cellular_therapy_or_bcma_targeted_therapy_yes_no)) %>%
+# mutate(anakinra_yes_no = str_to_upper(anakinra_yes_no)) %>%
+# mutate(non_secretory_mm_yes_no = str_to_upper(non_secretory_mm_yes_no)) %>%
+mutate(plasma_cell_leukemia_yes_no = case_when(
+  plasma_cell_leukemia_yes_no == 0 ~ "No",
+  plasma_cell_leukemia_yes_no == 1 ~ "Yes",
+  is.na(plasma_cell_leukemia_yes_no) ~ NA_character_
+)) %>%
   mutate(amyloid_yes_no = case_when(
     amyloid_yes_no == 0 ~ "No",
     amyloid_yes_no == 1 ~ "Yes",
@@ -695,7 +692,7 @@ immune_data1 <- immune_data %>%
   mutate(infectiononset = infection_dt - date_of_car_t_infusion_number_of_days_from_apharesis_to_infusion)
 
 # Response
-immune_data2 <- immune_data1 %>% 
+clinical <- clinical %>% 
   mutate(day30response = case_when(
     (os_event == 1 | pfs_event ==1) & mo_pfs_from_infusion < 1 ~ "Died or progressed before day 30",
     #pfs_event == 1 & mo_pfs_from_infusion < 1 ~ "Died or progressed before day 30",
@@ -829,33 +826,33 @@ immune_data2 <- immune_data1 %>%
   #   x3_month_mrd_clonoseq_positive_vs_negative == "mrd_pos" ~ "Positive",
   #   x3_month_mrd_clonoseq_positive_vs_negative == "mrd_unk" ~ NA_character_,
   #   TRUE ~ x3_month_mrd_clonoseq_positive_vs_negative
-  # )) %>%
-  # mutate(x6_month_mrd_clonoseq_positive_vs_negative = case_when(
-  #   x6_month_mrd_clonoseq_positive_vs_negative == "mrd_neg" ~ "Negative",
-  #   x6_month_mrd_clonoseq_positive_vs_negative == "mrd_pos" ~ "Positive",
-  #   x6_month_mrd_clonoseq_positive_vs_negative == "mrd_unk" ~ NA_character_,
-  #   TRUE ~ x6_month_mrd_clonoseq_positive_vs_negative
-  # )) %>%
-  # mutate(x9_month_mrd_clonoseq_positive_vs_negative = case_when(
-  #   x9_month_mrd_clonoseq_positive_vs_negative == "mrd_neg" ~ "Negative",
-  #   x9_month_mrd_clonoseq_positive_vs_negative == "mrd_pos" ~ "Positive",
-  #   x9_month_mrd_clonoseq_positive_vs_negative == "mrd_unk" ~ NA_character_,
-  #   TRUE ~ x9_month_mrd_clonoseq_positive_vs_negative
-  # )) %>%
-  # mutate(x12_month_mrd_clonoseq_positive_vs_negative = case_when(
-  #   x12_month_mrd_clonoseq_positive_vs_negative == "mrd_neg" ~ "Negative",
-  #   x12_month_mrd_clonoseq_positive_vs_negative == "mrd_pos" ~ "Positive",
-  #   x12_month_mrd_clonoseq_positive_vs_negative == "mrd_unk" ~ NA_character_,
-  #   TRUE ~ x12_month_mrd_clonoseq_positive_vs_negative
-  # )) %>%
-  
-  
-  mutate(day30response_MRD = case_when(
-    day30response_v2 == "sCR or CR" & day_30_mrd_clonoseq_positive_vs_negative == "Negative" ~ "sCR or CR, MRD-",
-    day30response_v2 == "sCR or CR" & day_30_mrd_clonoseq_positive_vs_negative == "Positive" ~ "sCR or CR, MRD+",
-    day30response_v2 == "sCR or CR" & is.na(day_30_mrd_clonoseq_positive_vs_negative) ~ "sCR or CR, MRD unknown",
-    TRUE ~ day30response_v2
-  )) %>%
+# )) %>%
+# mutate(x6_month_mrd_clonoseq_positive_vs_negative = case_when(
+#   x6_month_mrd_clonoseq_positive_vs_negative == "mrd_neg" ~ "Negative",
+#   x6_month_mrd_clonoseq_positive_vs_negative == "mrd_pos" ~ "Positive",
+#   x6_month_mrd_clonoseq_positive_vs_negative == "mrd_unk" ~ NA_character_,
+#   TRUE ~ x6_month_mrd_clonoseq_positive_vs_negative
+# )) %>%
+# mutate(x9_month_mrd_clonoseq_positive_vs_negative = case_when(
+#   x9_month_mrd_clonoseq_positive_vs_negative == "mrd_neg" ~ "Negative",
+#   x9_month_mrd_clonoseq_positive_vs_negative == "mrd_pos" ~ "Positive",
+#   x9_month_mrd_clonoseq_positive_vs_negative == "mrd_unk" ~ NA_character_,
+#   TRUE ~ x9_month_mrd_clonoseq_positive_vs_negative
+# )) %>%
+# mutate(x12_month_mrd_clonoseq_positive_vs_negative = case_when(
+#   x12_month_mrd_clonoseq_positive_vs_negative == "mrd_neg" ~ "Negative",
+#   x12_month_mrd_clonoseq_positive_vs_negative == "mrd_pos" ~ "Positive",
+#   x12_month_mrd_clonoseq_positive_vs_negative == "mrd_unk" ~ NA_character_,
+#   TRUE ~ x12_month_mrd_clonoseq_positive_vs_negative
+# )) %>%
+
+
+mutate(day30response_MRD = case_when(
+  day30response_v2 == "sCR or CR" & day_30_mrd_clonoseq_positive_vs_negative == "Negative" ~ "sCR or CR, MRD-",
+  day30response_v2 == "sCR or CR" & day_30_mrd_clonoseq_positive_vs_negative == "Positive" ~ "sCR or CR, MRD+",
+  day30response_v2 == "sCR or CR" & is.na(day_30_mrd_clonoseq_positive_vs_negative) ~ "sCR or CR, MRD unknown",
+  TRUE ~ day30response_v2
+)) %>%
   mutate(mon3response_v2 = case_when(
     mon3response == "Died or progressed before 3 months" ~ "PD" ,
     mon3response == "3 months not reached" |  mon3response == "Not provided" | mon3response == "Not Evaluable" ~ NA_character_, 
@@ -1013,16 +1010,20 @@ immune_data2 <- immune_data1 %>%
     TRUE ~ best_response
   ))
 
-immune_data3 <- immune_data2 %>% 
+clinical <- clinical %>% 
   # Labs
-  mutate(baseline_ferritin = case_when(
+  mutate(baseline_ferritin_cat = case_when(
     baseline_ferritin >= 400                              ~ "≥ ULN at LD (≥ 400)",
     baseline_ferritin < 400                               ~ "Normal (< 400)"
-  )) %>% 
-  mutate(baseline_crp = case_when(
+  ), baseline_ferritin_cat = 
+    factor(baseline_ferritin_cat, levels = c("Normal (< 400)",
+                                             "≥ ULN at LD (≥ 400)"))) %>% 
+  mutate(baseline_crp_cat = case_when(
     baseline_crp >= 0.5                                   ~ "≥ ULN at LD (≥ 0.5)",
     baseline_crp < 0.5                                    ~ "Normal (< 0.5)"
-  )) %>%
+  ), baseline_crp_cat = 
+    factor(baseline_crp_cat, levels = c("Normal (< 0.5)",
+                                        "≥ ULN at LD (≥ 0.5)"))) %>% 
   mutate(baseline_B2M = case_when(
     baseline_b2m >= 5.5                                   ~ "≥ 5.5",
     baseline_b2m < 5.5                                    ~ "< 5.5"
@@ -1055,15 +1056,21 @@ immune_data3 <- immune_data2 %>%
   mutate(race_eth = case_when(
     ethnicity_yes_no_of_hispanic_latin_x_or_spanish_origin_unknown == "Yes" ~ "Hispanic (All races)",
     TRUE ~ race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown
-  )) #%>% 
-  # mutate(race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown = case_when(
-  #   race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown == "Unknown" ~ NA_character_,
-  #   TRUE ~ race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown
-  # ))
+  ))
 
-immune_data <- immune_data3 %>% 
-  select(-c(image_tag : area_analyzed_mm2), 
-         image_tag : area_analyzed_mm2)
+write_rds(clinical, paste0(here::here(), "/clinical_with_new_variables.rds"))
+
+
+immune_data <- mrn_map %>% 
+  full_join(., mif_data,
+            by = c("image_tag", "analysis_region")) %>% 
+  mutate(mrn = as.character(mrn)) %>% 
+  right_join(clinical, .,
+          by = "mrn") 
+
+# immune_data <- immune_data3 %>% 
+#   select(-c(image_tag : area_analyzed_mm2), 
+#          image_tag : area_analyzed_mm2)
 
 
 write_rds(immune_data, paste0(here::here(), "/immune_data.rds"))
@@ -1090,8 +1097,5 @@ check_data(immune_data[101:150])
 check_data(immune_data[151:200])
 check_data(immune_data[201:234])
 
-
-
-
-
+# END cleaning
 
