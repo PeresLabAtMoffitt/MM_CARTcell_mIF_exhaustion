@@ -1,0 +1,1791 @@
+---
+title: "Exploratory data analysis"
+author: "Christelle Colin-Leitzinger"
+date: '`r Sys.Date()`'
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_collapsed: false
+    theme: united
+    highlight: pygments
+    df_print: kable
+editor_options: 
+  chunk_output_type: console
+---
+
+<style type="text/css">
+
+.figure {
+    margin-top: 100px;
+    margin-bottom: 100px;
+}
+
+table {
+    margin-top: 10px;
+    margin-bottom: 25px !important;
+}
+
+th, td { padding: 5px; }
+
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE,
+                      message = FALSE,
+                      cache = FALSE,
+                      fig.align='center'
+                      )
+```
+
+```{r library}
+library(tidyverse)
+library(gtsummary)
+library(labelled)
+library(survminer)
+library(survival)
+theme_set(theme_classic(#base_size = 18
+  ))
+theme_gtsummary_compact()
+```
+
+```{r load data}
+immune_data <- 
+  read_rds(paste0(here::here(), "/immune_data.rds"))
+```
+
+```{r create cell ratio and cat}
+immune_data <- immune_data %>%
+  select(-c(
+    # remove because problem of staining
+    cd8_plus, percent_cd8_plus, 
+    # remove var of non interest
+    contains("tim3_plus"),
+    contains("lag3_plus"),
+    contains("pd1_plus"),
+    contains("tim3minus")
+  ))
+
+rate_data <- immune_data %>%
+  select(mrn, cd3_plus, cd3plus_lag3plus : cd3plus_pd1plus_lag3plus_tim3plus) %>%
+  mutate(across(-c(mrn, cd3_plus), ~ (. / cd3_plus) * 100)) %>%
+  `colnames<-`(c("mrn", "cd3_plus", str_c(colnames(.)[3:ncol(.)], ".CD3ratio")))
+
+immune_data <- immune_data %>%
+  full_join(., rate_data,
+            by = c("mrn", "cd3_plus")) %>% 
+  # create cat plasma cell and activation marker
+  mutate(cd138_cat = case_when(
+    percent_cd138_plus < 
+      median(percent_cd138_plus, na.rm = TRUE)                             ~ "Low",
+    percent_cd138_plus >= 
+      median(percent_cd138_plus, na.rm = TRUE)                             ~ "High"
+  )) %>% 
+  mutate(cd3_cat = case_when(
+    percent_cd3_plus < 
+      median(percent_cd3_plus, na.rm = TRUE)                               ~ "Low",
+    percent_cd3_plus >= 
+      median(percent_cd3_plus, na.rm = TRUE)                               ~ "High"
+  )) %>% 
+  mutate(cd3plus_cd8plus_cat = case_when(
+    percent_cd3plus_cd8plus < 
+      median(percent_cd3plus_cd8plus, na.rm = TRUE)                        ~ "Low",
+    percent_cd3plus_cd8plus >= 
+      median(percent_cd3plus_cd8plus, na.rm = TRUE)                        ~ "High"
+  )) %>% 
+  # create cat exhaustion marker
+  mutate(cd3plus_lag3plus.CD3ratio_cat = case_when(
+    cd3plus_lag3plus.CD3ratio < 
+      median(cd3plus_lag3plus.CD3ratio, na.rm = TRUE)                      ~ "Low",
+    cd3plus_lag3plus.CD3ratio >= 
+      median(cd3plus_lag3plus.CD3ratio, na.rm = TRUE)                      ~ "High"
+  )) %>% 
+  mutate(cd3plus_tim3plus.CD3ratio_cat = case_when(
+    cd3plus_tim3plus.CD3ratio < 
+      median(cd3plus_tim3plus.CD3ratio, na.rm = TRUE)                      ~ "Low",
+    cd3plus_tim3plus.CD3ratio >= 
+      median(cd3plus_tim3plus.CD3ratio, na.rm = TRUE)                      ~ "High"
+  )) %>% 
+  mutate(cd3plus_pd1plus_lag3plus.CD3ratio_cat = case_when(
+    cd3plus_pd1plus_lag3plus.CD3ratio < 
+      median(cd3plus_pd1plus_lag3plus.CD3ratio, na.rm = TRUE)              ~ "Low",
+    cd3plus_pd1plus_lag3plus.CD3ratio >= 
+      median(cd3plus_pd1plus_lag3plus.CD3ratio, na.rm = TRUE)              ~ "High"
+  )) %>% 
+  mutate(cd3plus_pd1plus_tim3plus.CD3ratio_cat = case_when(
+    cd3plus_pd1plus_tim3plus.CD3ratio < 
+      median(cd3plus_pd1plus_tim3plus.CD3ratio, na.rm = TRUE)              ~ "Low",
+    cd3plus_pd1plus_tim3plus.CD3ratio >= 
+      median(cd3plus_pd1plus_tim3plus.CD3ratio, na.rm = TRUE)              ~ "High"
+  )) %>% 
+  mutate(cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat = case_when(
+    cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio < 
+      median(cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio, na.rm = TRUE)     ~ "Low",
+    cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio >= 
+      median(cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio, na.rm = TRUE)     ~ "High"
+  )) %>% 
+  mutate(across(ends_with("_cat"), ~ factor(., levels = c("Low", "High"))))
+
+```
+
+<!-- # I.Explore overall immune data -->
+<!-- ## 1.Immune cell count -->
+<!-- ```{r} -->
+<!-- immune_data %>% -->
+<!--   select(percent_cd3_plus : percent_cd3plus_cd8plus, -->
+<!--          ends_with(".CD3ratio")) %>% -->
+<!--   tbl_summary() %>% -->
+<!--   bold_labels() -->
+<!-- ``` -->
+
+<!-- plot with same scale to compare -->
+<!-- ```{r, fig.height=8} -->
+<!-- immune_data %>% -->
+<!--   select(percent_cd3_plus : percent_cd3plus_cd8plus, -->
+<!--          ends_with(".CD3ratio")) %>% -->
+<!--   pivot_longer(cols = everything(), -->
+<!--                names_to = "cell type", -->
+<!--                values_to = "cell count") %>% -->
+<!--   ggplot(aes(y= `cell count`))+ -->
+<!--   geom_boxplot()+ -->
+<!--   facet_wrap(. ~ `cell type`, -->
+<!--              ncol = 3) -->
+<!-- ``` -->
+
+<!-- plot with different scale to visualise separately -->
+<!-- ```{r, fig.height=8} -->
+<!-- immune_data %>% -->
+<!--   select(percent_cd3_plus : percent_cd3plus_cd8plus, -->
+<!--          ends_with(".CD3ratio")) %>% -->
+<!--   pivot_longer(cols = everything(), -->
+<!--                names_to = "cell type", -->
+<!--                values_to = "cell count") %>% -->
+<!--   ggplot(aes(x= `cell type`, y= `cell count`, color= `cell type`))+ -->
+<!--   geom_boxplot()+ -->
+<!--   geom_jitter(color= "darkgrey")+ -->
+<!--   facet_wrap(. ~ `cell type`, -->
+<!--              ncol = 3, scales = "free")+ -->
+<!--   theme(legend.position = "none") -->
+<!-- ``` -->
+
+<!-- ## 2.How does activation and exhaustion marker correlate with plasma cell presence? -->
+
+<!-- ```{r} -->
+<!-- # library(corrplot) -->
+<!-- library(ggcorrplot) -->
+<!-- mat_data <- immune_data %>% -->
+<!--   select(percent_cd3_plus : percent_cd3plus_cd8plus, -->
+<!--          ends_with(".CD3ratio")) -->
+<!-- mat <- cor(mat_data) -->
+<!-- as_tibble(mat["percent_cd138_plus",], rownames = "Cell Types") -->
+<!-- ggcorrplot(mat, hc.order = TRUE, method = "circle",  -->
+<!--            type = "lower",  -->
+<!--            lab = TRUE,  -->
+<!--            title = "Correlation between T cell abundance", -->
+<!--            show.legend = TRUE, legend.title = "Correlation", show.diag = TRUE, -->
+<!--            lab_col = "darkblue", lab_size = 3,  -->
+<!--            sig.level = 0.05, insig = c("pch", "blank"), pch = 4, pch.col = "black", pch.cex = 10,  -->
+<!--            tl.cex = 10, tl.col = "red", tl.srt = 40, -->
+<!--            digits = 2 -->
+<!-- ) -->
+<!-- ``` -->
+
+<!-- The first plot is a plotly showing the ids, the second plot shows the correlation coefficients with p-values. -->
+<!-- ```{r, fig.height=8} -->
+<!-- library(viridis) -->
+<!-- library(plotly) -->
+<!-- library(ggpubr) -->
+<!-- plot <- -->
+<!--   immune_data %>% -->
+<!--   select(mrn, cd138_plus, percent_cd3_plus : percent_cd3plus_cd8plus, -->
+<!--          ends_with(".CD3ratio")) %>% -->
+<!--   pivot_longer(cols = -c(mrn, percent_cd138_plus), -->
+<!--                names_to = "cell type", -->
+<!--                values_to = "cell count") %>% -->
+<!--   ggplot(aes(x= percent_cd138_plus, y= `cell count`, color= mrn))+ -->
+<!--   geom_point()+ -->
+<!--   scale_color_viridis_d()+ -->
+<!--   facet_wrap(. ~ `cell type`, -->
+<!--              ncol = 3, scales = "free_y")+ -->
+<!--   theme(legend.position = "none", -->
+<!--         text = element_text(size = 10)) + -->
+<!--   geom_smooth(method = "lm", se = FALSE, color= "blue") -->
+
+<!-- ggplotly(plot, tooltip="color") -->
+
+<!-- immune_data %>% -->
+<!--   select(mrn, cd138_plus, percent_cd3_plus : percent_cd3plus_cd8plus, -->
+<!--          ends_with(".CD3ratio")) %>% -->
+<!--   pivot_longer(cols = -c(mrn, percent_cd138_plus), -->
+<!--                names_to = "cell type", -->
+<!--                values_to = "cell count") %>% -->
+<!--   ggplot(aes(x= percent_cd138_plus, y= `cell count`, color= mrn))+ -->
+<!--   geom_point()+ -->
+<!--   scale_color_viridis_d()+ -->
+<!--   facet_wrap(. ~ `cell type`, -->
+<!--              ncol = 3, scales = "free_y")+ -->
+<!--   theme(legend.position = "none", -->
+<!--         text = element_text(size = 10)) + -->
+<!--   geom_smooth(method = "lm", se = FALSE, color= "blue")+ -->
+<!--   stat_cor(size = 2.5, label.x.npc = 0, -->
+<!--            label.y.npc = 0.9, -->
+<!--            # aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~")) -->
+<!--            color= "black")+ -->
+
+<!--   stat_regline_equation(size = 2.5, label.x.npc = 0.5, -->
+<!--                         label.y.npc = 0.9, -->
+<!--                         color= "black") -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- ## Labeling -->
+<!-- var_label(immune_data) <- -->
+<!--   list(age = "Patient Age", agecat = "Patient Age - Categories", -->
+<!--        # tumor_burden ="Tumor burden", -->
+<!--        proteasome = "Refractory to Proteasome Inhibitors", -->
+<!--        immuno = "Refractory to Immunomodulators", -->
+<!--        doubleref = "Double refractory", -->
+<!--        tripleref="Triple refractory", pentaref="Penta refractory", -->
+<!--        CRS_any = "Any CRS", CRS_gradecat = "CRS Grade - Categories", -->
+<!--        ICANS_any = "Any ICANS", ICANS_gradecat = "ICANS Grade - Categories", -->
+<!--        deletion_17p_prior_to_car_t_infusion_yes_no = "Deletion 17p at Infusion", -->
+<!--        t_4_14_prior_to_car_t_infusion_yes_no = "t(4:14) at Infusion", -->
+<!--        t_14_16_prior_to_car_t_infusion_yes_no = "t(14:16) at Infusion", -->
+<!--        dara = "Refractory to CD38 mAB", cytogenetics = "High-risk cytogenetics", -->
+<!--        male_sex = "Male sex", number_prior_lines_therapy = "Number of prior lines of therapy (≤ 4 vs. > 4)", -->
+<!--        cart_cell_dose = "Cell dose (< 400 vs. ≥ 400)", -->
+<!--        #cart_cell_dose_v2 = "Cell dose (<300, 300 to <400, ≥400)", -->
+<!--        #exclusion_criteria = "Number of KarMMa1 exclusion criteria", -->
+<!--        #comorbidities = "Any comorbid conditions", -->
+<!--        day30response = "Day 30 Response Detailed", -->
+<!--        day30response_v2 = "Day 30 Response", mon3response = "3 Month Response Detailed", -->
+<!--        mon3response_v2 = "3 Month Response", -->
+<!--        day30response_MRD = "Day 30 Response with MRD", ORR_30days = "Day 30 ORR", -->
+<!--        CRorbetter_30days = "Day 30 CR or better", -->
+<!--        mon3response_MRD = "3 Month Response with MRD", ORR_3mon = "3 Month ORR", -->
+<!--        CRorbetter_3mon = "3 Month CR or better", best_response = "Best Response", -->
+<!--        best_response_MRD = "Best Response with MRD", best_ORR = "Best ORR", -->
+<!--        best_CRorbetter = "Best CR or better", mon6response = "6 Month Response Detailed", -->
+<!--        mon6response_v2 = "6 Month Response", ORR_6mon = "6 Month ORR", -->
+<!--        CRorbetter_6mon = "6 Month CR or better", -->
+<!--        mon6response_MRD = "6 Month Response with MRD", mon9response = "9 Month Response Detailed", -->
+<!--        mon9response_v2 = "9 Month Response", ORR_9mon = "9 Month ORR", -->
+<!--        CRorbetter_9mon = "9 Month CR or better", -->
+<!--        mon9response_MRD = "9 Month Response with MRD", mon12response = "12 Month Response Detailed", -->
+<!--        mon12response_v2 = "12 Month Response", ORR_12mon = "12 Month ORR", -->
+<!--        CRorbetter_12mon = "12 Month CR or better", -->
+<!--        mon12response_MRD = "12 Month Response with MRD", -->
+<!--        gr2_CRS = "CRS grade (<2 vs. ≥2)", gr2_ICANS = "ICANS grade (<2 vs. ≥2)", -->
+<!--        baseline_ferritin_cat = "Baseline ferritin, < 400 vs. ≥ 400", -->
+<!--        baseline_crp_cat = "Baseline CRP, < 0.5 vs. ≥ 0.5", inpatientbed = "Inpatient bed days", -->
+<!--        inpatientbed_costs = "Estimated costs, inpatient bed days", -->
+<!--        icubed_costs = "Estimated costs, ICU bed days", -->
+<!--        total_costs = "Estimated total costs (Inpatient + ICU)", -->
+<!--        icubed_costs_amongicu = "Estimated costs, ICU bed days - ONLY AMONG PTS ADMITTED TO ICU", -->
+<!--        length_icu_stay = "Length of ICU stay - ONLY AMONG PTS ADMITTED TO ICU", -->
+<!--        # time_infusion_fup = "Follow-up time (months)", -->
+<!--        time_aph_infusion = "Time from apheresis to infusion (days)", -->
+<!--        ldh_pre_infusion = "LDH pre infusion", -->
+<!--        need_for_gcsf = "Need for GCSF", -->
+<!--        stem_cell_boost = "Stem Cell Boost", -->
+<!--        need_for_promacta_or_need_for_tpo_agonist = "Need for Promacta OR Need for TPO Agonist", -->
+<!--        prior_treatment_with_any_gene_therapy_based_therapeutic_or_investigational_cellular_therapy_or_bcma_targeted_therapy_yes_no = -->
+<!--          "Prior Treatment", -->
+<!--        excl_orgdys = "Organ dysfunction (hepatic, renal, cardiac)", subtype = "Myeloma subtype", -->
+<!--        race_eth = "Race and ethnicity", baseline_B2M = "Baseline B2M, < 5.5 vs. ≥ 5.5", -->
+<!--        gr3_CRS = "CRS, < Grade 3 vs. ≥ Grade 3", gr3_ICANS = "ICANS, < Grade 3 vs. ≥ Grade 3", -->
+<!--        any_neutropenia = "Any neutropenia", Neutropenia_gr1 = "Any grade 1 neutropenia", -->
+<!--        Neutropenia_gr2 = "Any grade 2 neutropenia", Neutropenia_gr3 = "Any grade 3 neutropenia", -->
+<!--        severe_neutro_30beyond = "Severe neutropenia ≥ 30 days", any_anemia = "Any anemia", -->
+<!--        Anemia_gr1 = "Any grade 1 anemia", Anemia_gr2 = "Any grade 2 anemia", Anemia_gr3 = "Any grade 3 anemia", -->
+<!--        severe_anemia_30beyond = "Severe anemia ≥ 30 days", any_thrombo = "Any thrombocytopenia", -->
+<!--        Thrombocytopenia_gr1 = "Any grade 1 thrombocytopenia", Thrombocytopenia_gr2 = "Any grade 2 thrombocytopenia", -->
+<!--        Thrombocytopenia_gr3 = "Any grade 3 thrombocytopenia", severe_throm_30beyond = "Severe thrombocytopenia ≥ 30 days", -->
+<!--        gr3_cytopenia_after_30d = "Any severe cytopenia  ≥ 30 days", cytopenia_d7 = "Any cytopenia, Day 7", -->
+<!--        cytopenia_d30 = "Any cytopenia, Day 30", cytopenia_d60 = "Any cytopenia, Day 60", -->
+<!--        cytopenia_d90 = "Any cytopenia, Day 90", gr3_cytopenia_d7 = "Severe cytopenia (Grade ≥ 3), Day 7", -->
+<!--        gr3_cytopenia_d30 = "Severe cytopenia (Grade ≥ 3), Day 30", -->
+<!--        gr3_cytopenia_d60 = "Severe cytopenia (Grade ≥ 3), Day 60", -->
+<!--        gr3_cytopenia_d90 = "Severe cytopenia (Grade ≥ 3), Day 90", readmit = "Readmission (Yes, No)", -->
+<!--        readmission_duration = "Duration of stay upon readmission (Days)", -->
+<!--        icansduration = "Duration of ICANS (Days)", crsduration = "Duration of CRS (Days)", -->
+<!--        typeinfection = "Infection Type", crsonset = "Onset of CRS (Relative to infusion)", -->
+<!--        icansonset = "Onset of ICANS (Relative to infusion)", -->
+<!--        infectiononset = "Onset of infection (Relative to infusion)") -->
+
+<!-- ``` -->
+
+<!-- # II.Explore clinical -->
+<!-- ## 1.Patients characteristics -->
+<!-- ```{r} -->
+<!-- immune_data %>% -->
+<!--   select(age, agecat, male_sex, sex, race_eth, subtype, -->
+<!--          extramedullary_disease_yes_no, plasma_cell_leukemia_yes_no, -->
+<!--          amyloid_yes_no, poems, non_secretory_mm_yes_no, -->
+<!--          high_marrow_burden_50_percent, -->
+<!--          ecog_at_consult, ecog_at_ld, -->
+<!--          r_iss_at_car_t_infusion, cytogenetics, -->
+<!--          deletion_17p_prior_to_car_t_infusion_yes_no, -->
+<!--          t_4_14_prior_to_car_t_infusion_yes_no, -->
+<!--          t_14_16_prior_to_car_t_infusion_yes_no, -->
+<!--          bridging_therapy_yes_no, r_iss_at_car_t_infusion, -->
+<!--          prior_lines_of_therapy, -->
+<!--          number_prior_lines_therapy, -->
+<!--          prior_auto_sct_yes_no, -->
+<!--          asct_within_12_weeks_prior_to_apheresis_yes_no, -->
+<!--          prior_allo_sct_yes_no, -->
+<!--          prior_treatment_with_any_gene_therapy_based_therapeutic_or_investigational_cellular_therapy_or_bcma_targeted_therapy_yes_no, -->
+<!--          immuno, proteasome, dara, doubleref, tripleref, pentaref, -->
+<!--          cell_dose_million_cells, cart_cell_dose, -->
+<!--          did_patient_met_criteria_for_kar_m_ma1_pre_car_t, excl_orgdys, -->
+<!--          renal_insufficiency_cr_cl_45_m_l_min_yes_no, -->
+<!--          baseline_crp, baseline_crp_cat, baseline_ferritin, baseline_ferritin_cat, baseline_b2m, baseline_B2M, ldh_pre_infusion, -->
+<!--          time_aph_infusion#, time_infusion_fup -->
+<!--   ) %>% -->
+<!--   tbl_summary( -->
+<!--     type = list( -->
+<!--       c(ecog_at_consult, extramedullary_disease_yes_no, -->
+<!--         plasma_cell_leukemia_yes_no, amyloid_yes_no, poems, -->
+<!--         non_secretory_mm_yes_no, high_marrow_burden_50_percent, -->
+<!--         cytogenetics, -->
+<!--         deletion_17p_prior_to_car_t_infusion_yes_no, -->
+<!--         t_4_14_prior_to_car_t_infusion_yes_no, -->
+<!--         t_14_16_prior_to_car_t_infusion_yes_no, bridging_therapy_yes_no, -->
+<!--         prior_auto_sct_yes_no, -->
+<!--         asct_within_12_weeks_prior_to_apheresis_yes_no, -->
+<!--         prior_allo_sct_yes_no, -->
+<!--         prior_treatment_with_any_gene_therapy_based_therapeutic_or_investigational_cellular_therapy_or_bcma_targeted_therapy_yes_no, -->
+<!--         immuno, proteasome, dara, doubleref, tripleref, pentaref, cart_cell_dose, -->
+<!--         did_patient_met_criteria_for_kar_m_ma1_pre_car_t, excl_orgdys, -->
+<!--         renal_insufficiency_cr_cl_45_m_l_min_yes_no -->
+<!--       ) -->
+<!--       ~"categorical", -->
+<!--       prior_lines_of_therapy ~ "continuous"), -->
+
+<!--     statistic = list(all_continuous() ~ "{median} ({min}, {max})"), -->
+<!--     digits = all_continuous() ~ 1 -->
+<!--   ) %>% -->
+<!--   bold_labels() %>% add_stat_label() %>% -->
+<!--   modify_footnote(update = everything() ~ NA) -->
+<!-- ``` -->
+
+
+
+<!-- ## 2.Safety -->
+
+<!-- ```{r} -->
+<!-- immune_data %>% -->
+<!--   select(CRS_any, max_crs_grade_0_5, -->
+<!--          CRS_gradecat, gr2_CRS, gr3_CRS,  -->
+<!--          relative_day_of_max_crp_relative_to_infusion,  -->
+<!--          crsonset, crsduration, -->
+<!--          ICANS_any, max_icans_relative_to_infusion, -->
+<!--          ICANS_gradecat, gr2_ICANS, gr3_ICANS,  -->
+<!--          relative_day_of_max_icans_relative_to_infusion,  -->
+<!--          icansonset, icansduration, -->
+<!--          length_of_hospital_stay_total_days_including_readmission, -->
+<!--          readmit, readmission_duration, -->
+<!--          icu_admission_yes_no, -->
+<!--          infection_yes_no, typeinfection, infectiononset, -->
+<!--          tocilizumab_yes_no, steroid_use_yes_no, anakinra_yes_no, -->
+<!--          need_for_gcsf, -->
+<!--          need_for_promacta_or_need_for_tpo_agonist, -->
+<!--          stem_cell_boost,  -->
+<!--          cytopenia_d7, cytopenia_d30, cytopenia_d60, cytopenia_d90, -->
+<!--          gr3_cytopenia_d7, gr3_cytopenia_d30, gr3_cytopenia_d60, gr3_cytopenia_d90 -->
+<!--   ) %>% -->
+<!--   tbl_summary( -->
+<!--     type = list( -->
+<!--       c(CRS_any, gr2_CRS, ICANS_any, gr2_ICANS, icu_admission_yes_no, -->
+<!--         infection_yes_no, -->
+<!--         tocilizumab_yes_no, steroid_use_yes_no, anakinra_yes_no, -->
+<!--         need_for_gcsf, -->
+<!--         need_for_promacta_or_need_for_tpo_agonist, -->
+<!--         stem_cell_boost, cytopenia_d7, cytopenia_d30, cytopenia_d60, cytopenia_d90, -->
+<!--         gr3_cytopenia_d7, gr3_cytopenia_d30, gr3_cytopenia_d60, gr3_cytopenia_d90, readmit -->
+<!--       ) ~ "categorical",  -->
+<!--       c(crsonset, crsduration, relative_day_of_max_icans_relative_to_infusion, -->
+<!--         icansonset, icansduration, readmission_duration)  -->
+<!--       ~ "continuous" -->
+<!--     ), -->
+<!--     statistic=list(all_continuous() ~ "{median} ({min}, {max}) [{p25}, {p75}]"), -->
+<!--     digits = all_continuous() ~ 1) %>% -->
+<!--   bold_labels() %>% add_stat_label() %>% -->
+<!--   modify_footnote(update = everything() ~ NA) -->
+<!-- ``` -->
+
+<!-- ## 3.Responses -->
+
+<!-- Any patient that did not reach the time point of interest or had a missing response was considered missing the response assessment at that time point. A patient who died or progressed before the time point of interest was considered a PD response. -->
+
+<!-- Although we have response assessments at 15 and 18 months, few patients have reached these time points so I am not including in the table below - however, these data were taken into account to determine best response. Also, a higher proportion of patients will have an unknown response for the 9 month and 12 month time point as a higher proportion of patients did not reach these time points compared to 30 days or 3 months. -->
+
+<!-- ```{r} -->
+<!-- immune_data %>% -->
+<!--   select(day30response, day30response_v2, day30response_MRD, ORR_30days, CRorbetter_30days, -->
+<!--          mon3response, mon3response_v2, mon3response_MRD, ORR_3mon, CRorbetter_3mon, -->
+<!--          mon6response, mon6response_v2, mon6response_MRD, ORR_6mon, CRorbetter_6mon, -->
+<!--          mon9response, mon9response_v2, mon9response_MRD, ORR_9mon, CRorbetter_9mon, -->
+<!--          mon12response, mon12response_v2, mon12response_MRD, ORR_12mon, CRorbetter_12mon, -->
+<!--          best_response, best_response_MRD, -->
+<!--          best_ORR, best_CRorbetter -->
+<!--          ) %>% -->
+<!--   tbl_summary() %>% -->
+<!--   bold_labels() %>% add_stat_label() %>% -->
+<!--   modify_footnote(update = everything() ~ NA) -->
+<!-- ``` -->
+
+
+<!-- # III.Correlation plasma cell vs clinical -->
+<!-- ```{r} -->
+<!-- cor(immune_data[, c("bm_plasma_cell_percent_at_pre_ld", "percent_cd138_plus")], use = "complete.obs") -->
+<!-- immune_data %>% -->
+<!--   ggplot(aes(x= bm_plasma_cell_percent_at_pre_ld, y= percent_cd138_plus, color= mrn))+ -->
+<!--   geom_point()+ -->
+<!--   scale_color_viridis_d()+ -->
+<!--   theme(legend.position = "none", -->
+<!--         text = element_text(size = 10)) + -->
+<!--   geom_smooth( se = TRUE, span = 5, color = "blue")+ -->
+<!--   stat_cor(size = 2.5, label.x = 0, -->
+<!--            label.y.npc = 0.9, -->
+<!--            # aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~")) -->
+<!--            color = "black")+ -->
+
+<!--   stat_regline_equation(size = 2.5, label.x = 50, -->
+<!--                         label.y.npc = 0.9, -->
+<!--                         color = "black") -->
+
+<!-- immune_data %>% -->
+<!--   ggplot(aes(x= high_marrow_burden_50_percent, y= percent_cd138_plus))+ -->
+<!--   geom_boxplot()+ -->
+<!--   geom_jitter() -->
+<!-- ``` -->
+
+# IV.Explore immune cells in the context of clinical
+## 1.by gr2_CRS
+
+<div class = "row">
+<div class = "col-md-6">
+```{r}
+A1 <- immune_data %>% 
+  filter(!is.na(gr2_CRS)) %>% 
+  ggplot(aes(x = gr2_CRS, y = percent_cd3plus_cd8plus))+
+  geom_boxplot()+
+  labs(x = "CRS grade (<2 vs. ≥2)", y = "CD3+CD8+ (%)")+
+  stat_compare_means(#label.x = 5 
+                     )
+                     # aes(label = paste0("p = ", ..p.format..))
+A1
+immune_data %>% 
+  filter(!is.na(gr2_CRS)) %>% 
+  ggplot(aes(x = gr2_CRS, y = cd3plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "CRS grade (<2 vs. ≥2)", y = "CD3+TIM3+/CD3+")
+A2 <- immune_data %>% 
+  filter(!is.na(gr2_CRS)) %>% 
+  ggplot(aes(x = gr2_CRS, y = cd3plus_pd1plus_lag3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "CRS grade (<2 vs. ≥2)", y = "CD3+PD1+LAG3+/CD3+")+
+  stat_compare_means()
+A2
+```
+</div>
+
+<div class = "col-md-6">
+```{r}
+C2 <- immune_data %>% 
+  filter(!is.na(gr2_CRS)) %>% 
+  ggplot(aes(x = gr2_CRS, y = cd3plus_pd1plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "CRS grade (<2 vs. ≥2)", y = "CD3+PD1+TIM3+/CD3+")+
+  stat_compare_means()
+C2
+E2 <- immune_data %>% 
+  filter(!is.na(gr2_CRS)) %>% 
+  ggplot(aes(x = gr2_CRS, y = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "CRS grade (<2 vs. ≥2)", y = "CD3+PD1+LAG3+TIM3+/CD3+")+
+  stat_compare_means()
+E2
+```
+</div>
+</div>
+
+## 2.by gr2_ICANS
+
+<div class = "row">
+<div class = "col-md-6">
+```{r}
+B1 <- immune_data %>% 
+  filter(!is.na(gr2_ICANS)) %>% 
+  ggplot(aes(x = gr2_ICANS, y = percent_cd3plus_cd8plus))+
+  geom_boxplot()+
+  labs(x = "ICANS grade (<2 vs. ≥2)", y = "CD3+CD8+ (%)")+
+  stat_compare_means()
+B1
+immune_data %>% 
+  filter(!is.na(gr2_ICANS)) %>% 
+  ggplot(aes(x = gr2_ICANS, y = cd3plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "ICANS grade (<2 vs. ≥2)", y = "CD3+TIM3+/CD3+")
+immune_data %>% 
+  filter(!is.na(gr2_ICANS)) %>% 
+  ggplot(aes(x = gr2_ICANS, y = cd3plus_pd1plus_lag3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "ICANS grade (<2 vs. ≥2)", y = "CD3+PD1+LAG3+/CD3+")
+```
+</div>
+
+<div class = "col-md-6">
+```{r}
+immune_data %>% 
+  filter(!is.na(gr2_ICANS)) %>% 
+  ggplot(aes(x = gr2_ICANS, y = cd3plus_pd1plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "ICANS grade (<2 vs. ≥2)", y = "CD3+PD1+TIM3+/CD3+")
+immune_data %>% 
+  filter(!is.na(gr2_ICANS)) %>% 
+  ggplot(aes(x = gr2_ICANS, y = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "ICANS grade (<2 vs. ≥2)", y = "CD3+PD1+LAG3+TIM3+/CD3+")
+```
+</div>
+</div>
+
+## 3.by ORR_30days
+
+<div class = "row">
+<div class = "col-md-6">
+```{r}
+C1 <- immune_data %>% 
+  filter(!is.na(ORR_30days)) %>% 
+  ggplot(aes(x = ORR_30days, y = percent_cd3plus_cd8plus))+
+  geom_boxplot()+
+  labs(x = "Day 30 ORR", y = "CD3+CD8+ (%)")+
+  stat_compare_means()
+C1
+immune_data %>% 
+  filter(!is.na(ORR_30days)) %>% 
+  ggplot(aes(x = ORR_30days, y = cd3plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "Day 30 ORR", y = "CD3+TIM3+/CD3+")
+immune_data %>% 
+  filter(!is.na(ORR_30days)) %>% 
+  ggplot(aes(x = ORR_30days, y = cd3plus_pd1plus_lag3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "Day 30 ORR", y = "CD3+PD1+LAG3+/CD3+")
+```
+</div>
+
+<div class = "col-md-6">
+```{r}
+immune_data %>% 
+  filter(!is.na(ORR_30days)) %>% 
+  ggplot(aes(x = ORR_30days, y = cd3plus_pd1plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "Day 30 ORR", y = "CD3+PD1+TIM3+/CD3+")
+immune_data %>% 
+  filter(!is.na(ORR_30days)) %>% 
+  ggplot(aes(x = ORR_30days, y = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "Day 30 ORR", y = "CD3+PD1+LAG3+TIM3+/CD3+")
+```
+</div>
+</div>
+
+## 4.by best_ORR
+
+<div class = "row">
+<div class = "col-md-6">
+```{r}
+D1 <- immune_data %>% 
+  filter(!is.na(best_ORR)) %>% 
+  ggplot(aes(x = best_ORR, y = percent_cd3plus_cd8plus))+
+  geom_boxplot()+
+  labs(x = "Best ORR", y = "CD3+CD8+ (%)")+
+  stat_compare_means()
+D1
+immune_data %>% 
+  filter(!is.na(best_ORR)) %>% 
+  ggplot(aes(x = best_ORR, y = cd3plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "Best ORR", y = "CD3+TIM3+/CD3+")
+B2 <- immune_data %>% 
+  filter(!is.na(best_ORR)) %>% 
+  ggplot(aes(x = best_ORR, y = cd3plus_pd1plus_lag3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "Best ORR", y = "CD3+PD1+LAG3+/CD3+")+
+  stat_compare_means()
+B2
+```
+</div>
+
+<div class = "col-md-6">
+```{r}
+D2 <- immune_data %>% 
+  filter(!is.na(best_ORR)) %>% 
+  ggplot(aes(x = best_ORR, y = cd3plus_pd1plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "Best ORR", y = "CD3+PD1+TIM3+/CD3+")+
+  stat_compare_means()
+D2
+F2 <- immune_data %>% 
+  filter(!is.na(best_ORR)) %>% 
+  ggplot(aes(x = best_ORR, y = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio))+
+  geom_boxplot()+
+  labs(x = "Best ORR", y = "CD3+PD1+LAG3+TIM3+/CD3+")+
+  stat_compare_means()
+F2
+```
+</div>
+</div>
+
+## 5. Selected plots
+### Activation markers
+```{r}
+library(patchwork)
+# ((A1 | B1| C1 | D1) + 
+#   plot_annotation(tag_levels = 'A'))
+```
+
+```{r, fig.width=12}
+library(ggbreak)
+theme_set(theme_grey())
+immune_data %>% 
+  select("CRS grade (<2 vs. ≥2)" = gr2_CRS, 
+         "ICANS grade (<2 vs. ≥2)" = gr2_ICANS, 
+         "Day 30 ORR" = ORR_30days, 
+         "Best ORR" = best_ORR,
+         percent_cd3plus_cd8plus) %>% 
+  pivot_longer(cols = -percent_cd3plus_cd8plus) %>% 
+  mutate(name = factor(name, levels = c("CRS grade (<2 vs. ≥2)", "ICANS grade (<2 vs. ≥2)", 
+                                        "Day 30 ORR", "Best ORR"))
+         ) %>% 
+  ggplot(aes(x = value, y = percent_cd3plus_cd8plus, group= value))+
+  geom_boxplot()+
+  labs(x = NULL, y = "CD3+CD8+ (%)")+
+  facet_grid(. ~ name, scales = "free")+
+  ylim(0, 12.5)+
+  scale_y_break(breaks = c(7, 11), 
+                ticklabels=c(12))+ 
+  theme_classic(base_size = 18)+
+  theme(axis.text.y.right = element_blank(),
+        axis.ticks.y.right = element_blank(),
+        axis.line.y.right = element_blank())
+theme_set(theme_classic(base_size = 18
+  ))
+```
+
+### Exhaustion markers
+```{r, fig.height=7}
+# (((A2 | B2) / 
+#     (C2 | D2) /
+#     (E2 | F2)) + 
+#   plot_annotation(tag_levels = 'A'))
+```
+
+```{r}
+# immune_data %>% 
+#   select("CRS grade (<2 vs. ≥2)" = gr2_CRS, "Best ORR" = best_ORR,
+#          "CD3+PD1+LAG3+/CD3+" = cd3plus_pd1plus_lag3plus.CD3ratio,
+#          "CD3+PD1+TIM3+/CD3+" = cd3plus_pd1plus_tim3plus.CD3ratio,
+#          "CD3+PD1+LAG3+TIM3+/CD3+" = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio
+#          ) %>% 
+#   pivot_longer(cols = c(`CRS grade (<2 vs. ≥2)`, `Best ORR`), 
+#                values_to = "group",
+#                names_to = "response") %>% 
+#   mutate(response = factor(response, levels = c("CRS grade (<2 vs. ≥2)", "Best ORR"))
+#          ) %>% 
+#   pivot_longer(cols = -c(response, group),
+#                names_repair = "minimal") %>% 
+#   ggplot(aes(x = group, y = value))+
+#   geom_violin()+
+#   labs(x = NULL, y = NULL)+
+#   stat_compare_means()+
+#   facet_grid(name ~ response,
+#              scales = "free",
+#              switch = "y"# "both"
+#              )
+# library(ggridges)
+# immune_data %>% 
+#   select("CRS grade (<2 vs. ≥2)" = gr2_CRS, "Best ORR" = best_ORR,
+#          "CD3+PD1+LAG3+/CD3+" = cd3plus_pd1plus_lag3plus.CD3ratio,
+#          "CD3+PD1+TIM3+/CD3+" = cd3plus_pd1plus_tim3plus.CD3ratio,
+#          "CD3+PD1+LAG3+TIM3+/CD3+" = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio
+#          ) %>% 
+#   pivot_longer(cols = c(`CRS grade (<2 vs. ≥2)`, `Best ORR`), 
+#                values_to = "group",
+#                names_to = "response") %>% 
+#   mutate(response = factor(response, levels = c("CRS grade (<2 vs. ≥2)", "Best ORR"))
+#          ) %>% 
+#   pivot_longer(cols = -c(response, group),
+#                names_repair = "minimal") %>% 
+#   ggplot(aes(x = value, y = name, fill= group))+
+#   geom_density_ridges(alpha=0.5)+
+#   facet_wrap(. ~ response, scales = "free_x")
+
+
+immune_data %>% 
+  select("CRS grade (<2 vs. ≥2)" = gr2_CRS, "Best ORR" = best_ORR,
+         "CD3+PD1+LAG3+/CD3+" = cd3plus_pd1plus_lag3plus.CD3ratio,
+         "CD3+PD1+TIM3+/CD3+" = cd3plus_pd1plus_tim3plus.CD3ratio,
+         "CD3+PD1+LAG3+TIM3+/CD3+" = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio
+         ) %>% 
+  pivot_longer(cols = c(`CRS grade (<2 vs. ≥2)`, `Best ORR`), 
+               values_to = "group",
+               names_to = "response") %>% 
+  mutate(response = factor(response, levels = c("CRS grade (<2 vs. ≥2)", "Best ORR"))
+         ) %>% 
+  pivot_longer(cols = -c(response, group),
+               names_repair = "minimal") %>% 
+  filter(!is.na(group)) %>% 
+  ggplot(aes(x = group, y = value))+
+  geom_boxplot()+
+  labs(x = NULL, y = NULL)+
+  scale_y_log10()+
+  facet_grid(rows = vars(response),
+             cols = vars(name),
+             scales = "free",
+             switch = "y")
+  # facet_wrap(response ~ name,
+  #            scales = "free"
+  # #            # dir = "v",
+  # #            # switch = "y"# "both"
+  # #            # strip.position = "top"
+  #            )
+```
+
+```{r, fig.width=12}
+immune_data %>% 
+  select("CRS grade (<2 vs. ≥2)" = gr2_CRS,
+         "CD3+PD1+LAG3+/CD3+" = cd3plus_pd1plus_lag3plus.CD3ratio,
+         "CD3+PD1+TIM3+/CD3+" = cd3plus_pd1plus_tim3plus.CD3ratio,
+         "CD3+PD1+LAG3+TIM3+/CD3+" = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio
+         ) %>% 
+  pivot_longer(cols = -c("CRS grade (<2 vs. ≥2)")) %>% 
+  filter(!is.na(value)) %>% 
+  ggplot(aes(x = `CRS grade (<2 vs. ≥2)`, y = value))+
+  geom_boxplot()+
+  labs(x = "CRS grade (<2 vs. ≥2)", y = NULL)+
+  scale_y_log10()+
+  # facet_grid(cols = vars(name)#,
+  #            # scales = "free"
+  #            )
+  facet_wrap(. ~ name)
+
+immune_data %>% 
+  select("Best ORR" = best_ORR,
+         "CD3+PD1+LAG3+/CD3+" = cd3plus_pd1plus_lag3plus.CD3ratio,
+         "CD3+PD1+TIM3+/CD3+" = cd3plus_pd1plus_tim3plus.CD3ratio,
+         "CD3+PD1+LAG3+TIM3+/CD3+" = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio
+         ) %>% 
+  pivot_longer(cols = -c("Best ORR")) %>% 
+  filter(!is.na(value)) %>% 
+  ggplot(aes(x = `Best ORR`, y = value))+
+  geom_boxplot()+
+  labs(x = "Best ORR", y = NULL)+
+  scale_y_log10()+
+  # facet_grid(cols = vars(name)#,
+  #            # scales = "free"
+  #            )
+  facet_wrap(. ~ name)
+```
+
+<!-- # V.Immune cell in CART treatment context -->
+<!-- Look at CRS_gradecat or gr3_CRS, gr2_CRS (CD138, 8, PD1+others)   -->
+<!-- ICANS (PD1+others?)   -->
+
+<!-- ```{r, results = 'asis'} -->
+<!-- table_var <- c(# "extramedullary_disease_yes_no",  -->
+<!--                # "amyloid_yes_no", "plasma_cell_leukemia_yes_no", -->
+<!--                # "prior_treatment_with_any_gene_therapy_based_therapeutic_or_investigational_cellular_therapy_or_bcma_targeted_therapy_yes_no", -->
+<!--                # "h_o_or_presence_of_plasma_cell_leukemia_waldenstroms_poems_or_amyloidosis_yes_no", -->
+<!--                # "h_o_of_malignancies_yes_no", -->
+<!--                # "ongoing_treatment_with_chronic_immunosuppressants_yes_no", -->
+<!--                # "did_patient_met_criteria_for_kar_m_ma1_pre_car_t", "blenrep", -->
+<!--                # "bcma_car_t_on_trial", "high_marrow_burden_50_percent", -->
+<!--                "infection_yes_no", -->
+<!--   # "need_for_gcsf", -->
+<!--                # "need_for_promacta_or_need_for_tpo_agonist", "stem_cell_boost", -->
+<!--                # "race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown", -->
+<!--                # "ethnicity_yes_no_of_hispanic_latin_x_or_spanish_origin_unknown", -->
+<!--                # "race_eth", "race", "male_sex", -->
+<!--                # "pfs_event", "os_event", "cytogenetics", "immuno", "proteasome", "dara", -->
+<!--                # "doubleref", "tripleref", "pentaref", "number_prior_lines_therapy", -->
+<!--                "CRS_any", "gr2_CRS", -->
+<!--                "ICANS_any", "gr2_ICANS", -->
+<!--                "gr3_cytopenia_d30", "gr3_cytopenia_d60", "gr3_cytopenia_d90" -->
+<!--                # "Neutropenia_90d", "Anemia_90d", "Thrombocytopenia_90d", -->
+<!--                # "any_neutropenia", "any_anemia", "any_thrombo", "cytopenia_d90", -->
+<!--                # "cart_cell_dose", -->
+<!--                # "baseline_B2M" -->
+<!-- )  -->
+
+
+<!-- for (i in table_var){ -->
+
+<!--   tbl <- immune_data %>%  -->
+<!--     select(i,  -->
+<!--            percent_cd3_plus : percent_cd3plus_cd8plus, -->
+<!--            ends_with(".CD3ratio"), -->
+<!--            ends_with("_cat")) %>%  -->
+<!--     tbl_summary(by = i) %>%  -->
+<!--     bold_labels() %>%  -->
+<!--     add_p() %>% bold_p(t= 0.05) %>%  -->
+<!--     modify_spanning_header(everything() ~ paste(i)) -->
+<!--   print(tbl) -->
+
+<!-- } -->
+
+<!-- ``` -->
+
+<!-- # VI.Immune cell in CART response -->
+<!-- worse response for high lag3 patients? -->
+<!-- ```{r, results = 'asis'} -->
+<!-- table_var <- c(# "day30response_v2", "mon3response_v2", "mon6response_v2", "mon9response_v2",  -->
+<!--                # "mon12response_v2", "mon15response_v2", "mon18response_v2",  -->
+<!--                "ORR_30days", "ORR_3mon", #"ORR_6mon", "ORR_9mon", "ORR_12mon", -->
+<!--                # "ORR_15mon", "ORR_18mon",  -->
+<!--                "best_ORR",  -->
+<!--                # "best_response",  -->
+<!--                # "day30response_MRD", "mon3response_MRD", "mon6response_MRD", -->
+<!--                # "mon9response_MRD", "mon12response_MRD", "mon15response_MRD", -->
+<!--                # "mon18response_MRD", "best_response_MRD", -->
+<!--                "CRorbetter_30days", "CRorbetter_3mon",# "CRorbetter_6mon", -->
+<!--                # "CRorbetter_9mon", "CRorbetter_12mon", "CRorbetter_15mon", -->
+<!--                # "CRorbetter_18mon",  -->
+<!--                "best_CRorbetter" -->
+<!-- ) -->
+
+<!-- for (i in table_var){ -->
+
+<!--   tbl <- immune_data %>%  -->
+<!--     select(i,  -->
+<!--            percent_cd3_plus : percent_cd3plus_cd8plus, -->
+<!--            ends_with(".CD3ratio"), -->
+<!--            ends_with("_cat")) %>% -->
+<!--     tbl_summary(by = i) %>% -->
+<!--     bold_labels() %>% -->
+<!--     add_p() %>% bold_p(t= 0.05) %>% -->
+<!--     modify_spanning_header(everything() ~ paste(i)) -->
+<!--   print(tbl) -->
+
+<!-- } -->
+
+<!-- ``` -->
+
+<!-- # VII.Overall survival -->
+<!-- ## 1.HR -->
+<!-- ```{r} -->
+<!-- tbl_uni <- immune_data %>%  -->
+<!--   select(os_event, mo_os_from_infusion, -->
+<!--          percent_cd3_plus : percent_cd3plus_cd8plus, -->
+<!--          ends_with(".CD3ratio"), -->
+<!--          cd138_cat, cd3_cat,  -->
+<!--          cd3plus_cd8plus_cat,  -->
+<!--          cd3plus_lag3plus.CD3ratio_cat,  -->
+<!--          cd3plus_tim3plus.CD3ratio_cat, cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_tim3plus.CD3ratio_cat,  -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat, -->
+
+<!--          age#, race_eth, race, -->
+<!--          # race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown -->
+<!--          ) %>% -->
+<!--   tbl_uvregression(method = survival::coxph, -->
+<!--                    y = (Surv(time = immune_data$mo_os_from_infusion, -->
+<!--                              event = immune_data$os_event)), -->
+<!--                    exponentiate = TRUE) %>% -->
+<!--   bold_labels() %>% italicize_levels() %>% -->
+<!--   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- tbl_uni -->
+<!-- # tbl1 <- coxph(Surv(time = immune_data$mo_os_from_infusion,  -->
+<!-- #                    event = immune_data$os_event) ~ -->
+<!-- #                 percent_cd3_plus + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE, -->
+<!-- #                  include = percent_cd3_plus) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl2 <- coxph(Surv(time = immune_data$mo_os_from_infusion,  -->
+<!-- #                    event = immune_data$os_event) ~ -->
+<!-- #                 percent_cd138_plus + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = percent_cd138_plus) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl3 <- coxph(Surv(time = immune_data$mo_os_from_infusion,  -->
+<!-- #                    event = immune_data$os_event) ~ -->
+<!-- #                 percent_cd3plus_cd8plus + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = percent_cd3plus_cd8plus) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl4 <- coxph(Surv(time = immune_data$mo_os_from_infusion,  -->
+<!-- #                    event = immune_data$os_event) ~ -->
+<!-- #                 cd3plus_lag3plus.CD3ratio + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_lag3plus.CD3ratio) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl5 <- coxph(Surv(time = immune_data$mo_os_from_infusion,  -->
+<!-- #                    event = immune_data$os_event) ~ -->
+<!-- #                 cd3plus_tim3plus.CD3ratio + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_tim3plus.CD3ratio) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl6 <- coxph(Surv(time = immune_data$mo_os_from_infusion,  -->
+<!-- #                    event = immune_data$os_event) ~ -->
+<!-- #                 cd3plus_pd1plus_lag3plus.CD3ratio + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_pd1plus_lag3plus.CD3ratio) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl7 <- coxph(Surv(time = immune_data$mo_os_from_infusion,  -->
+<!-- #                    event = immune_data$os_event) ~ -->
+<!-- #                 cd3plus_pd1plus_tim3plus.CD3ratio + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_pd1plus_tim3plus.CD3ratio) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl8 <- coxph(Surv(time = immune_data$mo_os_from_infusion,  -->
+<!-- #                    event = immune_data$os_event) ~ -->
+<!-- #                 cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl9 <- coxph(Surv(time = immune_data$mo_os_from_infusion,  -->
+<!-- #                    event = immune_data$os_event) ~ -->
+<!-- #                 cd138_cat + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd138_cat) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl10 <- coxph(Surv(time = immune_data$mo_os_from_infusion,  -->
+<!-- #                    event = immune_data$os_event) ~ -->
+<!-- #                 cd3_cat + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3_cat) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl11 <- coxph(Surv(time = immune_data$mo_os_from_infusion,  -->
+<!-- #                    event = immune_data$os_event) ~ -->
+<!-- #                 cd3plus_cd8plus_cat + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_cd8plus_cat) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl12 <- coxph(Surv(time = immune_data$mo_os_from_infusion,  -->
+<!-- #                    event = immune_data$os_event) ~ -->
+<!-- #                 cd3plus_lag3plus.CD3ratio_cat + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_lag3plus.CD3ratio_cat) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl13 <- coxph(Surv(time = immune_data$mo_os_from_infusion,  -->
+<!-- #                    event = immune_data$os_event) ~ -->
+<!-- #                 cd3plus_tim3plus.CD3ratio_cat + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_tim3plus.CD3ratio_cat) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl14 <- coxph(Surv(time = immune_data$mo_os_from_infusion,  -->
+<!-- #                    event = immune_data$os_event) ~ -->
+<!-- #                 cd3plus_pd1plus_lag3plus.CD3ratio_cat + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_pd1plus_lag3plus.CD3ratio_cat) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl15 <- coxph(Surv(time = immune_data$mo_os_from_infusion,  -->
+<!-- #                    event = immune_data$os_event) ~ -->
+<!-- #                 cd3plus_pd1plus_tim3plus.CD3ratio_cat + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_pd1plus_tim3plus.CD3ratio_cat) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl16 <- coxph(Surv(time = immune_data$mo_os_from_infusion,  -->
+<!-- #                    event = immune_data$os_event) ~ -->
+<!-- #                 cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # # coxph(Surv(time = immune_data$mo_os_from_infusion,  -->
+<!-- # #              event = immune_data$os_event) ~  -->
+<!-- # #         percent_cd3_plus + age + race_eth,  -->
+<!-- # #         data =  immune_data) %>% -->
+<!-- # #   tbl_regression(exponentiate = TRUE) %>%  -->
+<!-- # #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") %>% -->
+<!-- # #     modify_spanning_header(everything() ~ "Multivariable") -->
+<!-- #  -->
+<!-- # tbl_multi <- tbl_stack(list(tbl1, tbl2, tbl3, tbl4, -->
+<!-- #                             tbl5, tbl6, tbl7, tbl8, -->
+<!-- #                             tbl9, tbl10, tbl11, tbl12, -->
+<!-- #                             tbl13, tbl14, tbl15, tbl16)) -->
+<!-- # tbl_merge(list(tbl_multi, tbl_uni), tab_spanner = c("**Multivariable adjusted by age+sex**", "**Univariable**")) -->
+<!-- ``` -->
+
+<!-- ## 2.KM -->
+<!-- ```{r KM OS, fig.width= 6, fig.height=4} -->
+<!-- ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ 1,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            legend = "none", -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            #pval=TRUE,  -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "OS probability", -->
+<!--            xlab = "Time (in months)" -->
+<!-- ) -->
+<!-- ``` -->
+
+<!-- <div class = "row"> -->
+<!-- <div class = "col-md-6"> -->
+<!-- ```{r KM OS strat, fig.width= 6, fig.height=4} -->
+<!-- ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ cd138_cat,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            font.legend = c(16, "black"), -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            pval=TRUE, -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "OS probability", -->
+<!--            xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Paired")  -->
+<!-- ) + guides(colour = guide_legend(ncol = 1)) -->
+<!-- ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ cd3_cat,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            font.legend = c(16, "black"), -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            pval=TRUE, -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "OS probability", -->
+<!--            xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set2")  -->
+<!-- ) + guides(colour = guide_legend(ncol = 1)) -->
+<!-- ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ cd3plus_cd8plus_cat,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            font.legend = c(16, "black"), -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            pval=TRUE, -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "OS probability", -->
+<!--            xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set2")  -->
+<!-- ) + guides(colour = guide_legend(ncol = 1)) -->
+<!-- ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ cd3plus_lag3plus.CD3ratio_cat,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            font.legend = c(16, "black"), -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            pval=TRUE, -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "OS probability", -->
+<!--            xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set1")  -->
+<!-- ) + guides(colour = guide_legend(ncol = 1)) -->
+<!-- ``` -->
+<!-- </div> -->
+
+<!-- <div class = "col-md-6"> -->
+<!-- ```{r KM OS strat2, fig.width= 6, fig.height=4} -->
+<!-- ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ cd3plus_tim3plus.CD3ratio_cat,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            font.legend = c(16, "black"), -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            pval=TRUE, -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "OS probability", -->
+<!--            xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set1")  -->
+<!-- ) + guides(colour = guide_legend(ncol = 1)) -->
+<!-- ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ cd3plus_pd1plus_lag3plus.CD3ratio_cat,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            font.legend = c(16, "black"), -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            pval=TRUE, -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "OS probability", -->
+<!--            xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set2")  -->
+<!-- ) + guides(colour = guide_legend(ncol = 1)) -->
+
+
+<!-- ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ cd3plus_pd1plus_tim3plus.CD3ratio_cat,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            font.legend = c(16, "black"), -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            pval=TRUE, -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "OS probability", -->
+<!--            xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set1")  -->
+<!-- ) + guides(colour = guide_legend(ncol = 1)) -->
+<!-- ggsurvplot(survfit(Surv(mo_os_from_infusion, os_event) ~ cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            font.legend = c(16, "black"), -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            pval=TRUE, -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "OS probability", -->
+<!--            xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set1")  -->
+<!-- ) + guides(colour = guide_legend(ncol = 1)) -->
+<!-- ``` -->
+<!-- </div> -->
+<!-- </div> -->
+
+
+<!-- # VIII.Progression free survival -->
+<!-- ## 1.HR -->
+<!-- ```{r} -->
+<!-- tbl_uni <- immune_data %>%  -->
+<!--   select(pfs_event, mo_pfs_from_infusion, -->
+<!--          percent_cd3_plus : percent_cd3plus_cd8plus, -->
+<!--          ends_with(".CD3ratio"), -->
+<!--          cd138_cat, cd3_cat,  -->
+<!--          cd3plus_cd8plus_cat,  -->
+<!--          cd3plus_lag3plus.CD3ratio_cat,  -->
+<!--          cd3plus_tim3plus.CD3ratio_cat, cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_tim3plus.CD3ratio_cat,  -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat, -->
+
+<!--          age#, race_eth, race, -->
+<!--          # race_white_black_asian_pacific_islander_american_indian_alaskan_native_other_unknown -->
+<!--          ) %>% -->
+<!--   tbl_uvregression(method = survival::coxph, -->
+<!--                    y = (Surv(time = immune_data$mo_pfs_from_infusion, -->
+<!--                              event = immune_data$pfs_event)), -->
+<!--                    exponentiate = TRUE) %>% -->
+<!--   bold_labels() %>% italicize_levels() %>% -->
+<!--   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- tbl_uni -->
+<!-- # tbl1 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion,  -->
+<!-- #                    event = immune_data$pfs_event) ~ -->
+<!-- #                 percent_cd3_plus + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE, -->
+<!-- #                  include = percent_cd3_plus) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl2 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion,  -->
+<!-- #                    event = immune_data$pfs_event) ~ -->
+<!-- #                 percent_cd138_plus + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = percent_cd138_plus) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl3 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion,  -->
+<!-- #                    event = immune_data$pfs_event) ~ -->
+<!-- #                 percent_cd3plus_cd8plus + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = percent_cd3plus_cd8plus) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl4 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion,  -->
+<!-- #                    event = immune_data$pfs_event) ~ -->
+<!-- #                 cd3plus_lag3plus.CD3ratio + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_lag3plus.CD3ratio) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl5 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion,  -->
+<!-- #                    event = immune_data$pfs_event) ~ -->
+<!-- #                 cd3plus_tim3plus.CD3ratio + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_tim3plus.CD3ratio) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl6 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion,  -->
+<!-- #                    event = immune_data$pfs_event) ~ -->
+<!-- #                 cd3plus_pd1plus_lag3plus.CD3ratio + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_pd1plus_lag3plus.CD3ratio) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl7 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion,  -->
+<!-- #                    event = immune_data$pfs_event) ~ -->
+<!-- #                 cd3plus_pd1plus_tim3plus.CD3ratio + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_pd1plus_tim3plus.CD3ratio) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl8 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion,  -->
+<!-- #                    event = immune_data$pfs_event) ~ -->
+<!-- #                 cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl9 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion,  -->
+<!-- #                    event = immune_data$pfs_event) ~ -->
+<!-- #                 cd138_cat + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd138_cat) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl10 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion,  -->
+<!-- #                    event = immune_data$pfs_event) ~ -->
+<!-- #                 cd3_cat + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3_cat) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl11 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion,  -->
+<!-- #                    event = immune_data$pfs_event) ~ -->
+<!-- #                 cd3plus_cd8plus_cat + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_cd8plus_cat) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl12 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion,  -->
+<!-- #                    event = immune_data$pfs_event) ~ -->
+<!-- #                 cd3plus_lag3plus.CD3ratio_cat + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_lag3plus.CD3ratio_cat) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl13 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion,  -->
+<!-- #                    event = immune_data$pfs_event) ~ -->
+<!-- #                 cd3plus_tim3plus.CD3ratio_cat + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_tim3plus.CD3ratio_cat) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl14 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion,  -->
+<!-- #                    event = immune_data$pfs_event) ~ -->
+<!-- #                 cd3plus_pd1plus_lag3plus.CD3ratio_cat + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_pd1plus_lag3plus.CD3ratio_cat) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl15 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion,  -->
+<!-- #                    event = immune_data$pfs_event) ~ -->
+<!-- #                 cd3plus_pd1plus_tim3plus.CD3ratio_cat + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_pd1plus_tim3plus.CD3ratio_cat) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # tbl16 <- coxph(Surv(time = immune_data$mo_pfs_from_infusion,  -->
+<!-- #                    event = immune_data$pfs_event) ~ -->
+<!-- #                 cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat + -->
+<!-- #                 age + sex, -->
+<!-- #               data =  immune_data) %>% -->
+<!-- #   tbl_regression(exponentiate = TRUE,  -->
+<!-- #                  include = cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat) %>% -->
+<!-- #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") -->
+<!-- #  -->
+<!-- # # coxph(Surv(time = immune_data$mo_pfs_from_infusion,  -->
+<!-- # #              event = immune_data$pfs_event) ~  -->
+<!-- # #         percent_cd3_plus + age + race_eth,  -->
+<!-- # #         data =  immune_data) %>% -->
+<!-- # #   tbl_regression(exponentiate = TRUE) %>%  -->
+<!-- # #   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") %>% -->
+<!-- # #     modify_spanning_header(everything() ~ "Multivariable") -->
+<!-- #  -->
+<!-- # tbl_multi <- tbl_stack(list(tbl1, tbl2, tbl3, tbl4, -->
+<!-- #                             tbl5, tbl6, tbl7, tbl8, -->
+<!-- #                             tbl9, tbl10, tbl11, tbl12, -->
+<!-- #                             tbl13, tbl14, tbl15, tbl16)) -->
+<!-- # tbl_merge(list(tbl_multi, tbl_uni), tab_spanner = c("**Multivariable adjusted by age+sex**", "**Univariable**")) -->
+<!-- ``` -->
+
+<!-- ## 2.KM -->
+<!-- ```{r KM PFS, fig.width= 6, fig.height=4} -->
+<!-- ggsurvplot(survfit(Surv(mo_os_from_infusion, pfs_event) ~ 1,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            legend = "none", -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            #pval=TRUE,  -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "PFS probability", -->
+<!--            xlab = "Time (in months)" -->
+<!-- ) -->
+<!-- ``` -->
+
+
+<!-- <div class = "row"> -->
+<!-- <div class = "col-md-6"> -->
+<!-- ```{r KM PFS strat, fig.width= 6, fig.height=4} -->
+<!-- ggsurvplot(survfit(Surv(mo_pfs_from_infusion, pfs_event) ~ cd138_cat,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            font.legend = c(16, "black"), -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            pval=TRUE, -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "PFS probability", -->
+<!--            xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Paired")  -->
+<!-- ) + guides(colour = guide_legend(ncol = 1)) -->
+<!-- ggsurvplot(survfit(Surv(mo_pfs_from_infusion, pfs_event) ~ cd3_cat,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            font.legend = c(16, "black"), -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            pval=TRUE, -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "PFS probability", -->
+<!--            xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set2")  -->
+<!-- ) + guides(colour = guide_legend(ncol = 1)) -->
+<!-- ggsurvplot(survfit(Surv(mo_pfs_from_infusion, pfs_event) ~ cd3plus_cd8plus_cat,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            font.legend = c(16, "black"), -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            pval=TRUE, -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "PFS probability", -->
+<!--            xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set2")  -->
+<!-- ) + guides(colour = guide_legend(ncol = 1)) -->
+<!-- ggsurvplot(survfit(Surv(mo_pfs_from_infusion, pfs_event) ~ cd3plus_lag3plus.CD3ratio_cat,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            font.legend = c(16, "black"), -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            pval=TRUE, -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "PFS probability", -->
+<!--            xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set1")  -->
+<!-- ) + guides(colour = guide_legend(ncol = 1)) -->
+<!-- ``` -->
+<!-- </div> -->
+
+<!-- <div class = "col-md-6"> -->
+<!-- ```{r KM PFS strat2, fig.width= 6, fig.height=4} -->
+<!-- ggsurvplot(survfit(Surv(mo_pfs_from_infusion, pfs_event) ~ cd3plus_tim3plus.CD3ratio_cat,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            font.legend = c(16, "black"), -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            pval=TRUE, -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "PFS probability", -->
+<!--            xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set1")  -->
+<!-- ) + guides(colour = guide_legend(ncol = 1)) -->
+<!-- ggsurvplot(survfit(Surv(mo_pfs_from_infusion, pfs_event) ~ cd3plus_pd1plus_lag3plus.CD3ratio_cat,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            font.legend = c(16, "black"), -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            pval=TRUE, -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "PFS probability", -->
+<!--            xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set2")  -->
+<!-- ) + guides(colour = guide_legend(ncol = 1)) -->
+
+
+<!-- ggsurvplot(survfit(Surv(mo_pfs_from_infusion, pfs_event) ~ cd3plus_pd1plus_tim3plus.CD3ratio_cat,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            font.legend = c(16, "black"), -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            pval=TRUE, -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "PFS probability", -->
+<!--            xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set1")  -->
+<!-- ) + guides(colour = guide_legend(ncol = 1)) -->
+<!-- ggsurvplot(survfit(Surv(mo_pfs_from_infusion, pfs_event) ~ cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat,  -->
+<!--                    data = immune_data), -->
+<!--            font.x = c(18, "bold", "black"),  -->
+<!--            font.y = c(18, "bold", "black"),  -->
+<!--            font.legend = c(16, "black"), -->
+<!--            font.tickslab = c(14, "black"),  -->
+<!--            size = 1.5, -->
+
+<!--            pval=TRUE, -->
+<!--            # risk.table = TRUE, -->
+<!--            # break.time.by = 3, -->
+<!--            # legend.title = "", -->
+<!--            ylab = "PFS probability", -->
+<!--            xlab = "Time (in months)", ggtheme = theme_classic(), palette = c("Set1")  -->
+<!-- ) + guides(colour = guide_legend(ncol = 1)) -->
+<!-- ``` -->
+<!-- </div> -->
+<!-- </div> -->
+
+<!-- # IX.Subsetting marrow burden -->
+<!-- ```{r high marrow subset} -->
+<!-- high_marrow_subset <- immune_data %>%  -->
+<!--   filter(!is.na(high_marrow_burden_50_percent)) -->
+<!-- marrow_Yes <- high_marrow_subset %>%  -->
+<!--   filter(high_marrow_burden_50_percent == "Yes") -->
+<!-- marrow_No <- high_marrow_subset %>%  -->
+<!--   filter(high_marrow_burden_50_percent == "No") -->
+<!-- ``` -->
+
+<!-- ## 1.Table by marrow burden -->
+<!-- ```{r} -->
+<!-- high_marrow_subset %>%  -->
+<!--   select(gr2_CRS, gr2_ICANS, ORR_30days, best_ORR, -->
+<!--          high_marrow_burden_50_percent) %>%  -->
+<!--   tbl_summary(by= high_marrow_burden_50_percent) %>%  -->
+<!--   bold_labels() %>% -->
+<!--   add_p() %>% bold_p(t= 0.05) %>% -->
+<!--   modify_spanning_header(everything() ~ "Marrow burden (50%)") -->
+<!-- ``` -->
+
+<!-- ## 2.Stratified analyses - cell type vs tox/response by marrow burden -->
+<!-- ```{r} -->
+<!-- tbl1 <- marrow_Yes %>%  -->
+<!--   select(gr2_CRS, cd3plus_cd8plus_cat, -->
+<!--          cd3plus_tim3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat, -->
+<!--          percent_cd3plus_cd8plus, -->
+<!--          cd3plus_tim3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>%  -->
+<!--   tbl_summary(by= gr2_CRS) %>%  -->
+<!--   bold_labels() %>% -->
+<!--   add_p() %>% bold_p(t= 0.05) -->
+
+<!-- tbl2 <- marrow_No %>%  -->
+<!--   select(gr2_CRS, cd3plus_cd8plus_cat, -->
+<!--          cd3plus_tim3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat, -->
+<!--          percent_cd3plus_cd8plus, -->
+<!--          cd3plus_tim3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>%  -->
+<!--   tbl_summary(by= gr2_CRS) %>%  -->
+<!--   bold_labels() %>% -->
+<!--   add_p() %>% bold_p(t= 0.05) -->
+<!-- tbl_merge(list(tbl1, tbl2), tab_spanner = c("High marrow", "Low marrow")) %>% -->
+<!--   modify_caption("**CRS grade (<2 vs. ≥2)** (N = {N})") -->
+
+<!-- tbl1 <- marrow_Yes %>%  -->
+<!--   select(gr2_ICANS, cd3plus_cd8plus_cat, -->
+<!--          cd3plus_tim3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat, -->
+<!--          percent_cd3plus_cd8plus, -->
+<!--          cd3plus_tim3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>%  -->
+<!--   tbl_summary(by= gr2_ICANS) %>%  -->
+<!--   bold_labels() %>% -->
+<!--   add_p() %>% bold_p(t= 0.05) -->
+
+<!-- tbl2 <- marrow_No %>%  -->
+<!--   select(gr2_ICANS, cd3plus_cd8plus_cat, -->
+<!--          cd3plus_tim3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat, -->
+<!--          percent_cd3plus_cd8plus, -->
+<!--          cd3plus_tim3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>%  -->
+<!--   tbl_summary(by= gr2_ICANS) %>%  -->
+<!--   bold_labels() %>% -->
+<!--   add_p() %>% bold_p(t= 0.05) -->
+<!-- tbl_merge(list(tbl1, tbl2), tab_spanner = c("High marrow", "Low marrow")) %>% -->
+<!--   modify_caption("**ICANS grade (<2 vs. ≥2)** (N = {N})") -->
+
+<!-- tbl1 <- marrow_Yes %>%  -->
+<!--   select(ORR_30days, cd3plus_cd8plus_cat, -->
+<!--          cd3plus_tim3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat, -->
+<!--          percent_cd3plus_cd8plus, -->
+<!--          cd3plus_tim3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>%  -->
+<!--   tbl_summary(by= ORR_30days) %>%  -->
+<!--   bold_labels() %>% -->
+<!--   add_p() %>% bold_p(t= 0.05) -->
+
+<!-- tbl2 <- marrow_No %>%  -->
+<!--   select(ORR_30days, cd3plus_cd8plus_cat, -->
+<!--          cd3plus_tim3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat, -->
+<!--          percent_cd3plus_cd8plus, -->
+<!--          cd3plus_tim3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>%  -->
+<!--   tbl_summary(by= ORR_30days) %>%  -->
+<!--   bold_labels() %>% -->
+<!--   add_p() %>% bold_p(t= 0.05) -->
+<!-- tbl_merge(list(tbl1, tbl2), tab_spanner = c("High marrow", "Low marrow")) %>% -->
+<!--   modify_caption("**Day 30 ORR** (N = {N})") -->
+
+<!-- tbl1 <- marrow_Yes %>%  -->
+<!--   select(best_ORR, cd3plus_cd8plus_cat, -->
+<!--          cd3plus_tim3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat, -->
+<!--          percent_cd3plus_cd8plus, -->
+<!--          cd3plus_tim3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>%  -->
+<!--   tbl_summary(by= best_ORR) %>%  -->
+<!--   bold_labels() %>% -->
+<!--   add_p() %>% bold_p(t= 0.05) -->
+
+<!-- tbl2 <- marrow_No %>%  -->
+<!--   select(best_ORR, cd3plus_cd8plus_cat, -->
+<!--          cd3plus_tim3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat, -->
+<!--          percent_cd3plus_cd8plus, -->
+<!--          cd3plus_tim3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus.CD3ratio, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio) %>%  -->
+<!--   tbl_summary(by= best_ORR) %>%  -->
+<!--   bold_labels() %>% -->
+<!--   add_p() %>% bold_p(t= 0.05) -->
+<!-- tbl_merge(list(tbl1, tbl2), tab_spanner = c("High marrow", "Low marrow")) %>% -->
+<!--   modify_caption("**Best ORR** (N = {N})") -->
+<!-- ``` -->
+
+<!-- ## 3.Survival -->
+<!-- ### HR -->
+<!-- ```{r} -->
+<!-- marrow_Yes %>%  -->
+<!--   select(os_event, mo_os_from_infusion, -->
+<!--          percent_cd3_plus : percent_cd3plus_cd8plus, -->
+<!--          ends_with(".CD3ratio"), -->
+<!--          cd138_cat, cd3_cat, -->
+<!--          cd3plus_cd8plus_cat, -->
+<!--          cd3plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_tim3plus.CD3ratio_cat, cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_tim3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat, -->
+<!--          age -->
+<!--          ) %>% -->
+<!--   tbl_uvregression(method = survival::coxph, -->
+<!--                    y = (Surv(time = marrow_Yes$mo_os_from_infusion, -->
+<!--                              event = marrow_Yes$os_event)), -->
+<!--                    exponentiate = TRUE) %>% -->
+<!--   bold_labels() %>% italicize_levels() %>% -->
+<!--   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") %>% -->
+<!--   modify_spanning_header(everything() ~ "Yes - Marrow burden (50%)") -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- marrow_No %>%  -->
+<!--   select(os_event, mo_os_from_infusion, -->
+<!--          percent_cd3_plus : percent_cd3plus_cd8plus, -->
+<!--          ends_with(".CD3ratio"), -->
+<!--          cd138_cat, cd3_cat, -->
+<!--          cd3plus_cd8plus_cat, -->
+<!--          cd3plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_tim3plus.CD3ratio_cat, cd3plus_pd1plus_lag3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_tim3plus.CD3ratio_cat, -->
+<!--          cd3plus_pd1plus_lag3plus_tim3plus.CD3ratio_cat, -->
+<!--          age -->
+<!--          ) %>% -->
+<!--   tbl_uvregression(method = survival::coxph, -->
+<!--                    y = (Surv(time = marrow_No$mo_os_from_infusion, -->
+<!--                              event = marrow_No$os_event)), -->
+<!--                    exponentiate = TRUE) %>% -->
+<!--   bold_labels() %>% italicize_levels() %>% -->
+<!--   bold_p(t = .05) %>% add_nevent(location = "level") %>% add_n(location = "level") %>% -->
+<!--   modify_spanning_header(everything() ~ "No - Marrow burden (50%)") -->
+<!-- ``` -->
+
+
+
+
+<!-- <!-- ### Logistic regression --> -->
+<!-- <!-- ```{r} --> -->
+<!-- <!-- immune_data_lm <- high_marrow_subset %>% --> -->
+<!-- <!--   mutate(gr2_CRS = case_when( --> -->
+<!-- <!--     gr2_CRS == "Grade <2"    ~ 0, --> -->
+<!-- <!--     gr2_CRS == "Grade ≥2"   ~ 1 --> -->
+<!-- <!--   )) --> -->
+
+<!-- <!-- marrow_Yes <- immune_data_lm %>%  --> -->
+<!-- <!--   filter(high_marrow_burden_50_percent == "Yes") --> -->
+<!-- <!-- marrow_No <- immune_data_lm %>%  --> -->
+<!-- <!--   filter(high_marrow_burden_50_percent == "No") --> -->
+<!-- <!-- ``` --> -->
+
+
+<!-- <!-- ```{r} --> -->
+<!-- <!-- glm(gr2_CRS ~ percent_cd138_positive_cells + age, --> -->
+<!-- <!--     data = immune_data_lm, --> -->
+<!-- <!--     family = "binomial") %>% --> -->
+<!-- <!--   tbl_regression(exponentiate = TRUE, --> -->
+<!-- <!--                  intercept = TRUE) %>% --> -->
+<!-- <!--   add_nevent(location = "level") %>% add_n(location = "level") %>% --> -->
+<!-- <!--   modify_spanning_header(everything() ~ "**Grade 2+ CRS**") %>% --> -->
+<!-- <!--   bold_p(t = .05) --> -->
+
+<!-- <!-- ``` --> -->
+
+
+
+
+
+
+
+
+
+
+
+
+
